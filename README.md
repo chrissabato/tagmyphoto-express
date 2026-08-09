@@ -27,6 +27,12 @@ adapted to run without a backend.
    or just `Name` if there's no number. A header row (`Number,Name`) is
    detected and skipped, and duplicate names (case-insensitive) are skipped
    automatically.
+   **Import from Team Website…** pulls a roster directly from a Presto
+   Sports roster page (e.g. `/sports/wvball/2025-26/roster`) — paste in the
+   page's URL or path and it fetches and parses the number/name table. This
+   only works when the app is running embedded on that same site (see
+   "Embedding on a team site" below); a browser can't fetch another site's
+   pages directly (CORS), which is the whole reason the embed exists.
    You can keep multiple rosters (e.g. one team per season) — switch between
    them with the dropdown at the top of the panel or the Manage Roster modal,
    and use **+ New**, **Rename**, and **Delete** to manage them. Rosters are
@@ -70,3 +76,32 @@ This is a static site — no build step. Push `index.html`, `style.css`,
 `app.js`, `logo.svg`, `og-image.jpg`, and the `vendor/` folder to a
 repository and enable GitHub Pages (Settings → Pages → Deploy from branch),
 pointing at the branch/folder containing these files.
+
+## Embedding on a team site
+
+The website roster importer needs to run **same-origin** with the team's
+roster pages, or the browser blocks the fetch (CORS). Since this app has no
+backend to proxy around that, the fix is to run the app itself on the team's
+own site: add a page (e.g. `wubearcats.com/tagmyphoto`) with just this tag:
+
+```html
+<script src="https://express.tagmy.photo/embed.js"></script>
+```
+
+That injects a small "📷 TagMyPhoto" launch button. Clicking it mounts the
+full app inside a shadow root as a full-page overlay — shadow DOM keeps the
+app's CSS from colliding with the host site's (and vice versa) while
+staying in the same document/origin, so `fetch()` to any other page on that
+site works normally and the File System Access API is unaffected (unlike a
+cross-origin iframe, which would reintroduce the CORS problem and has
+unreliable File System Access API support). A **✕** button closes the
+overlay; reopening is instant since it just re-shows the same mounted app
+rather than reloading it.
+
+Because the embedded app runs under the team site's origin, its browser
+storage (rosters, settings, dark mode) is separate from the storage used
+when visiting `express.tagmy.photo` directly — they don't share data.
+
+This currently only understands **Presto Sports** roster pages (one
+`<table>`, jersey number in a `.jersey-number` cell, name in the row's
+`<th>`). Sidearm support is planned as a second parser, not a redesign.

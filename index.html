@@ -167,8 +167,20 @@
 
     <h3>Roster</h3>
     <p>Your roster is the list of names/numbers you tag most often. Use the gear icon to manage
-       rosters — add people one at a time, paste in a CSV (<code>number,name</code> per line), switch
-       between multiple rosters, or export/import them as JSON.</p>
+       rosters — the <strong>Manual</strong>, <strong>CSV / TSV</strong>, and
+       <strong>Presto</strong> tabs each add people a different way, the dropdown switches
+       between multiple rosters, and the <strong>JSON</strong> tab exports/imports them as a backup
+       or to move between devices.</p>
+
+    <h3>Importing a roster from your team's website</h3>
+    <p>The <strong>Presto</strong> tab fetches a team roster page directly, but it only
+       works when this app is running on the <em>same site</em> as that roster page — a browser
+       won't let it read another site's pages otherwise. To make that possible, add this tag to a
+       page on your team's website (ask whoever manages the site if you don't have access):</p>
+    <p><code>&lt;script src="https://express.tagmy.photo/embed.js"&gt;&lt;/script&gt;</code></p>
+    <p>That adds a small <strong>Launch</strong> button wherever the tag is placed. Clicking it
+       opens the full app as an overlay on top of that page, so Manage Roster &rarr;
+       Presto can pull a roster from any page on that same site.</p>
 
     <h3>Metadata Templates</h3>
     <p>Build a reusable set of IPTC/XMP fields (Description, Headline, Credit, etc.) under the gear
@@ -229,18 +241,20 @@
   <div class="modal roster-modal">
     <h2>Manage Roster</h2>
 
-    <div class="roster-switcher">
+    <div class="control-group">
       <select id="roster-select-modal" class="roster-select"></select>
-      <button id="btn-roster-new" class="link-btn">+ New</button>
-      <button id="btn-roster-rename" class="link-btn">Rename</button>
-      <button id="btn-roster-delete" class="link-btn">Delete</button>
-      <button id="btn-roster-clear" class="link-btn link-btn-danger">Clear</button>
-    </div>
-    <div class="roster-io">
-      <button id="btn-roster-export" class="link-btn">Export all rosters</button>
-      <button id="btn-roster-import" class="link-btn">Import rosters</button>
-      <input id="roster-import-file" type="file" accept="application/json,.json" class="hidden">
-      <span id="roster-io-status" class="csv-import-status"></span>
+      <button id="btn-roster-new" class="btn-manage" title="New roster" aria-label="New roster">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6V13z"></path></svg>
+      </button>
+      <button id="btn-roster-rename" class="btn-manage" title="Rename roster" aria-label="Rename roster">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M3,17.25V21h3.75L17.81,9.94l-3.75-3.75L3,17.25z M20.71,7.04c0.39-0.39,0.39-1.02,0-1.41l-2.34-2.34 c-0.39-0.39-1.02-0.39-1.41,0l-1.83,1.83l3.75,3.75L20.71,7.04z"></path></svg>
+      </button>
+      <button id="btn-roster-delete" class="btn-manage" title="Delete roster" aria-label="Delete roster">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M6,19c0,1.1,0.9,2,2,2h8c1.1,0,2-0.9,2-2V7H6V19z M19,4h-3.5l-1-1h-5l-1,1H5v2h14V4z"></path></svg>
+      </button>
+      <button id="btn-roster-clear" class="btn-manage btn-manage-danger" title="Clear all members" aria-label="Clear all members">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
     </div>
     <div id="roster-name-edit-section" class="roster-name-edit-section hidden">
       <input id="roster-name-edit-input" type="text" placeholder="Roster name">
@@ -248,19 +262,40 @@
       <button id="btn-roster-name-edit-cancel" class="btn btn-secondary">Cancel</button>
     </div>
 
-    <div class="roster-form">
-      <input id="roster-name-input" type="text" placeholder="Name">
-      <input id="roster-number-input" type="text" placeholder="# (optional)" class="roster-number-input">
-      <button id="btn-roster-add" class="btn btn-primary">Add</button>
-    </div>
-
     <div class="roster-import">
-      <button id="btn-toggle-csv-import" class="link-btn">Import from CSV</button>
-      <div id="csv-import-section" class="csv-import-section hidden">
+      <div class="roster-tabs" role="tablist">
+        <button id="btn-toggle-add-individual" class="roster-tab" role="tab" aria-selected="true">Manual</button>
+        <button id="btn-toggle-csv-import" class="roster-tab" role="tab" aria-selected="false">CSV / TSV</button>
+        <button id="btn-toggle-website-import" class="roster-tab" role="tab" aria-selected="false">Presto</button>
+        <button id="btn-toggle-json-import" class="roster-tab" role="tab" aria-selected="false">JSON</button>
+      </div>
+      <div id="add-individual-section" class="roster-tab-panel" role="tabpanel">
+        <div class="roster-form">
+          <input id="roster-name-input" type="text" placeholder="Name">
+          <input id="roster-number-input" type="text" placeholder="# (optional)" class="roster-number-input">
+          <button id="btn-roster-add" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+      <div id="csv-import-section" class="roster-tab-panel hidden" role="tabpanel">
         <textarea id="csv-import-text" class="csv-import-textarea" rows="5" placeholder="Paste CSV here, one person per line:&#10;12,Jane Smith&#10;John Doe"></textarea>
         <div class="csv-import-actions">
           <button id="btn-csv-import" class="btn btn-primary">Import</button>
           <span id="csv-import-status" class="csv-import-status"></span>
+        </div>
+      </div>
+      <div id="website-import-section" class="roster-tab-panel hidden" role="tabpanel">
+        <input id="website-import-url" type="text" placeholder="Roster page URL, e.g. /sports/wvball/2025-26/roster">
+        <div class="csv-import-actions">
+          <button id="btn-website-import" class="btn btn-primary">Import</button>
+          <span id="website-import-status" class="csv-import-status"></span>
+        </div>
+      </div>
+      <div id="json-import-section" class="roster-tab-panel hidden" role="tabpanel">
+        <div class="csv-import-actions">
+          <button id="btn-roster-export" class="btn btn-secondary">Export all rosters</button>
+          <button id="btn-roster-import" class="btn btn-primary">Import rosters</button>
+          <input id="roster-import-file" type="file" accept="application/json,.json" class="hidden">
+          <span id="roster-io-status" class="csv-import-status"></span>
         </div>
       </div>
     </div>
@@ -277,12 +312,20 @@
   <div class="modal template-modal">
     <h2>Manage Metadata Templates</h2>
 
-    <div class="roster-switcher">
+    <div class="control-group">
       <select id="template-select-modal" class="roster-select"></select>
-      <button id="btn-template-new" class="link-btn">+ New</button>
-      <button id="btn-template-rename" class="link-btn">Rename</button>
-      <button id="btn-template-duplicate" class="link-btn">Duplicate</button>
-      <button id="btn-template-delete" class="link-btn link-btn-danger">Delete</button>
+      <button id="btn-template-new" class="btn-manage" title="New template" aria-label="New template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6V13z"></path></svg>
+      </button>
+      <button id="btn-template-rename" class="btn-manage" title="Rename template" aria-label="Rename template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M3,17.25V21h3.75L17.81,9.94l-3.75-3.75L3,17.25z M20.71,7.04c0.39-0.39,0.39-1.02,0-1.41l-2.34-2.34 c-0.39-0.39-1.02-0.39-1.41,0l-1.83,1.83l3.75,3.75L20.71,7.04z"></path></svg>
+      </button>
+      <button id="btn-template-duplicate" class="btn-manage" title="Duplicate template" aria-label="Duplicate template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M16,1H4C2.9,1,2,1.9,2,3v14h2V3h12V1z M19,5H8C6.9,5,6,5.9,6,7v14c0,1.1,0.9,2,2,2h11c1.1,0,2-0.9,2-2V7C21,5.9,20.1,5,19,5z M19,21H8V7h11V21z"></path></svg>
+      </button>
+      <button id="btn-template-delete" class="btn-manage btn-manage-danger" title="Delete template" aria-label="Delete template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M6,19c0,1.1,0.9,2,2,2h8c1.1,0,2-0.9,2-2V7H6V19z M19,4h-3.5l-1-1h-5l-1,1H5v2h14V4z"></path></svg>
+      </button>
     </div>
     <div class="roster-io">
       <button id="btn-template-export" class="link-btn">Export template</button>
@@ -363,12 +406,20 @@
   <div class="modal template-modal rename-modal">
     <h2>Manage Rename Templates</h2>
 
-    <div class="roster-switcher">
+    <div class="control-group">
       <select id="rename-select-modal" class="roster-select"></select>
-      <button id="btn-rename-new" class="link-btn">+ New</button>
-      <button id="btn-rename-rename" class="link-btn">Rename</button>
-      <button id="btn-rename-duplicate" class="link-btn">Duplicate</button>
-      <button id="btn-rename-delete" class="link-btn link-btn-danger">Delete</button>
+      <button id="btn-rename-new" class="btn-manage" title="New template" aria-label="New template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6V13z"></path></svg>
+      </button>
+      <button id="btn-rename-rename" class="btn-manage" title="Rename template" aria-label="Rename template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M3,17.25V21h3.75L17.81,9.94l-3.75-3.75L3,17.25z M20.71,7.04c0.39-0.39,0.39-1.02,0-1.41l-2.34-2.34 c-0.39-0.39-1.02-0.39-1.41,0l-1.83,1.83l3.75,3.75L20.71,7.04z"></path></svg>
+      </button>
+      <button id="btn-rename-duplicate" class="btn-manage" title="Duplicate template" aria-label="Duplicate template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M16,1H4C2.9,1,2,1.9,2,3v14h2V3h12V1z M19,5H8C6.9,5,6,5.9,6,7v14c0,1.1,0.9,2,2,2h11c1.1,0,2-0.9,2-2V7C21,5.9,20.1,5,19,5z M19,21H8V7h11V21z"></path></svg>
+      </button>
+      <button id="btn-rename-delete" class="btn-manage btn-manage-danger" title="Delete template" aria-label="Delete template">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M6,19c0,1.1,0.9,2,2,2h8c1.1,0,2-0.9,2-2V7H6V19z M19,4h-3.5l-1-1h-5l-1,1H5v2h14V4z"></path></svg>
+      </button>
     </div>
     <div id="rename-name-edit-section" class="roster-name-edit-section hidden">
       <input id="rename-name-edit-input" type="text" placeholder="Rename template name">

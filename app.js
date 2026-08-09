@@ -390,8 +390,8 @@ function persistSettings() {
 // before first paint so the page doesn't flash light before switching to
 // the user's saved theme.
 function applyTheme() {
-  if (state.settings.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
-  else document.documentElement.removeAttribute('data-theme');
+  if (state.settings.darkMode) THEME_ROOT.setAttribute('data-theme', 'dark');
+  else THEME_ROOT.removeAttribute('data-theme');
   try { localStorage.setItem('darkMode', state.settings.darkMode ? '1' : '0'); } catch (e) {}
 }
 
@@ -434,7 +434,14 @@ function renameTargets() {
 }
 
 // --- DOM refs ---
-const $ = sel => document.querySelector(sel);
+// When embedded via embed.js on another site, the app's markup lives inside a
+// shadow root rather than the main document, so element lookups and the
+// dark-mode attribute both need to target that shadow tree instead of
+// `document`. Standalone (index.html loaded directly) these just fall back
+// to the normal document.
+const ROOT = window.__TMPX_ROOT__ || document;
+const THEME_ROOT = window.__TMPX_THEME_ROOT__ || document.documentElement;
+const $ = sel => ROOT.querySelector(sel);
 const el = {
   app: $('#app'),
   unsupported: $('#unsupported'),
@@ -493,11 +500,20 @@ const el = {
   btnRosterAdd: $('#btn-roster-add'),
   rosterList: $('#roster-list'),
   btnRosterClose: $('#btn-roster-close'),
+  btnToggleAddIndividual: $('#btn-toggle-add-individual'),
+  addIndividualSection: $('#add-individual-section'),
   btnToggleCsvImport: $('#btn-toggle-csv-import'),
   csvImportSection: $('#csv-import-section'),
   csvImportText: $('#csv-import-text'),
   btnCsvImport: $('#btn-csv-import'),
   csvImportStatus: $('#csv-import-status'),
+  btnToggleWebsiteImport: $('#btn-toggle-website-import'),
+  websiteImportSection: $('#website-import-section'),
+  websiteImportUrl: $('#website-import-url'),
+  btnWebsiteImport: $('#btn-website-import'),
+  websiteImportStatus: $('#website-import-status'),
+  btnToggleJsonImport: $('#btn-toggle-json-import'),
+  jsonImportSection: $('#json-import-section'),
   lightbox: $('#lightbox'),
   lightboxImg: $('#lightbox-img'),
   btnLightboxClose: $('#btn-lightbox-close'),
@@ -704,10 +720,14 @@ function renderRosterPanel() {
   el.rosterButtons.innerHTML = '';
   for (const member of activeRosterMembers()) {
     const btn = document.createElement('button');
-    btn.className = 'chip';
+    const isTagged = taggedSet.has(member.name.toLowerCase());
+    btn.className = 'chip' + (isTagged ? ' tagged' : '');
     btn.textContent = (member.number ? `#${member.number} ` : '') + member.name;
-    btn.disabled = !photo || taggedSet.has(member.name.toLowerCase());
-    btn.addEventListener('click', () => addTag(member.name, true));
+    btn.disabled = !photo;
+    btn.addEventListener('click', () => {
+      if (isTagged) removeTag(photo.id, member.name);
+      else addTag(member.name, true);
+    });
     el.rosterButtons.appendChild(btn);
   }
 
@@ -717,10 +737,14 @@ function renderRosterPanel() {
   el.extraNameButtons.innerHTML = '';
   for (const name of extra) {
     const btn = document.createElement('button');
-    btn.className = 'chip extra';
+    const isTagged = taggedSet.has(name.toLowerCase());
+    btn.className = 'chip extra' + (isTagged ? ' tagged' : '');
     btn.textContent = name;
-    btn.disabled = !photo || taggedSet.has(name.toLowerCase());
-    btn.addEventListener('click', () => addTag(name));
+    btn.disabled = !photo;
+    btn.addEventListener('click', () => {
+      if (isTagged) removeTag(photo.id, name);
+      else addTag(name);
+    });
     el.extraNameButtons.appendChild(btn);
   }
 }
@@ -1014,7 +1038,7 @@ function persistRosters() {
 // on an outside click. Progress modals (marked modal-no-dismiss) represent
 // an in-flight file write with no cancel affordance, so they're excluded —
 // they close themselves when the operation finishes.
-for (const overlay of document.querySelectorAll('.modal-overlay:not(.modal-no-dismiss)')) {
+for (const overlay of ROOT.querySelectorAll('.modal-overlay:not(.modal-no-dismiss)')) {
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.classList.add('hidden');
   });
@@ -1046,9 +1070,11 @@ el.btnManageRoster.addEventListener('click', () => {
   renderRosterSelects();
   renderRosterModalList();
   el.rosterNameEditSection.classList.add('hidden');
-  el.csvImportSection.classList.add('hidden');
+  activateRosterTab(el.addIndividualSection);
   el.csvImportText.value = '';
   el.csvImportStatus.textContent = '';
+  el.websiteImportUrl.value = '';
+  el.websiteImportStatus.textContent = '';
   el.rosterIoStatus.textContent = '';
   el.rosterModal.classList.remove('hidden');
 });
@@ -1185,19 +1211,10 @@ function parseRosterCsv(text) {
     .filter(row => row.name);
 }
 
-el.btnToggleCsvImport.addEventListener('click', () => {
-  el.csvImportSection.classList.toggle('hidden');
-  if (!el.csvImportSection.classList.contains('hidden')) el.csvImportText.focus();
-});
-
-el.btnCsvImport.addEventListener('click', () => {
-  const roster = activeRoster();
-  if (!roster) return;
-  const rows = parseRosterCsv(el.csvImportText.value);
-  if (!rows.length) {
-    el.csvImportStatus.textContent = 'No rows found.';
-    return;
-  }
+// Shared by the CSV and website importers: adds { name, number } rows to a
+// roster, skipping names already present (case-insensitive). Persists and
+// re-renders on any change; callers just report the resulting counts.
+function addRowsToRoster(roster, rows) {
   const seen = rosterNameSet();
   let added = 0, skipped = 0;
   for (const { name, number } of rows) {
@@ -1207,12 +1224,133 @@ el.btnCsvImport.addEventListener('click', () => {
     roster.members.push({ id: crypto.randomUUID(), name, number });
     added++;
   }
-  persistRosters();
-  renderRosterModalList();
-  renderRosterPanel();
+  if (added) {
+    persistRosters();
+    renderRosterModalList();
+    renderRosterPanel();
+  }
+  return { added, skipped };
+}
+
+function importStatusText({ added, skipped }) {
+  return `Added ${added}${skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}.`;
+}
+
+// The four tabs in the roster modal (manual entry, CSV/TSV paste,
+// Presto/Sidearm team-website fetch, whole-roster JSON export/import) work
+// like folder tabs — exactly one panel is visible at a time, and clicking a
+// tab switches to it.
+const ROSTER_TABS = [
+  { tab: el.btnToggleAddIndividual, panel: el.addIndividualSection, focus: el.rosterNameInput },
+  { tab: el.btnToggleCsvImport, panel: el.csvImportSection, focus: el.csvImportText },
+  { tab: el.btnToggleWebsiteImport, panel: el.websiteImportSection, focus: el.websiteImportUrl },
+  { tab: el.btnToggleJsonImport, panel: el.jsonImportSection, focus: null },
+];
+
+function activateRosterTab(panel) {
+  for (const entry of ROSTER_TABS) {
+    const active = entry.panel === panel;
+    entry.panel.classList.toggle('hidden', !active);
+    entry.tab.classList.toggle('active', active);
+    entry.tab.setAttribute('aria-selected', String(active));
+  }
+}
+
+for (const entry of ROSTER_TABS) {
+  entry.tab.addEventListener('click', () => {
+    activateRosterTab(entry.panel);
+    entry.focus?.focus();
+  });
+}
+
+el.btnCsvImport.addEventListener('click', () => {
+  const roster = activeRoster();
+  if (!roster) return;
+  const rows = parseRosterCsv(el.csvImportText.value);
+  if (!rows.length) {
+    el.csvImportStatus.textContent = 'No rows found.';
+    return;
+  }
+  const result = addRowsToRoster(roster, rows);
   el.csvImportText.value = '';
-  el.csvImportStatus.textContent =
-    `Added ${added}${skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}.`;
+  el.csvImportStatus.textContent = importStatusText(result);
+});
+
+// --- Roster import from a Presto Sports team-website roster page ---
+//
+// Only works when this app is running embedded on the same site as the
+// roster page (see embed.js) — a same-origin fetch() is required, since
+// there's no backend here to proxy around CORS. Presto's roster table has
+// one <tr> per player: the jersey number, when the sport has one, is in a
+// cell with class "jersey-number" — sports without jersey numbers (e.g.
+// triathlon) omit that cell entirely rather than leaving it empty, so it
+// must NOT be assumed to be the row's first cell (that's the name cell on
+// those rosters, and the wrong guess previously leaked the mangled name
+// text into the number field). The player's name is the first non-empty
+// <a> inside the row's <th> (the <th> also contains duplicate
+// hidden/responsive copies of that link for other breakpoints, so a plain
+// textContent read isn't reliable).
+function parsePrestoRosterHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const table = doc.querySelector('table');
+  if (!table) return [];
+  const rows = [...table.querySelectorAll('tbody tr')];
+  return rows
+    .map(row => {
+      const numberCell = row.querySelector('.jersey-number');
+      const number = numberCell?.textContent.trim() || '';
+      const nameCell = row.querySelector('th') || row.children[1];
+      const nameLink = nameCell
+        ? [...nameCell.querySelectorAll('a')].find(a => a.textContent.trim())
+        : null;
+      const name = (nameLink || nameCell)?.textContent.trim().replace(/\s+/g, ' ') || '';
+      return { number, name };
+    })
+    .filter(row => row.name);
+}
+
+// Resolves what the user typed/pasted (a full URL or a bare path) to a
+// same-origin path suitable for fetch(), or null if it points elsewhere.
+function resolveSameOriginPath(input) {
+  const value = input.trim();
+  if (!value) return null;
+  if (value.startsWith('/')) return value;
+  try {
+    const url = new URL(value, location.origin);
+    return url.origin === location.origin ? url.pathname + url.search : null;
+  } catch {
+    return null;
+  }
+}
+
+el.btnWebsiteImport.addEventListener('click', async () => {
+  const roster = activeRoster();
+  if (!roster) return;
+  const path = resolveSameOriginPath(el.websiteImportUrl.value);
+  if (!path) {
+    el.websiteImportStatus.textContent =
+      "This only works for pages on the current site — open the embedded app from your athletics site and paste a roster page from the same site.";
+    return;
+  }
+  el.websiteImportStatus.textContent = 'Fetching…';
+  let html;
+  try {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    html = await res.text();
+  } catch {
+    el.websiteImportStatus.textContent =
+      "Couldn't fetch that page — make sure you're using the embedded version on your athletics site, and that the URL is on the same site.";
+    return;
+  }
+  const rows = parsePrestoRosterHtml(html);
+  if (!rows.length) {
+    el.websiteImportStatus.textContent = "Couldn't find a roster table on that page.";
+    return;
+  }
+  const result = addRowsToRoster(roster, rows);
+  el.websiteImportUrl.value = '';
+  el.websiteImportStatus.textContent = importStatusText(result);
 });
 
 // --- Roster export / import (JSON, all rosters) ---

@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 
-:root {
+:root, :host {
   color-scheme: light;
   --bg-page: #f7fafc;
   --bg-surface: #ffffff;
@@ -384,6 +384,16 @@ body {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
+/* When several .btn-manage icon buttons sit side by side (e.g. the roster
+   modal's New/Rename/Delete/Clear row), only the last one keeps its
+   trailing rounded corners — the rest sit flush against their neighbor. */
+.control-group > .btn-manage:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.btn-manage-danger { color: #feb2b2; }
+.btn-manage-danger:hover { background: #742a2a; border-color: #742a2a; color: #fff; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   padding: 5px 10px;
@@ -394,9 +404,10 @@ body {
   background: var(--bg-surface);
   color: #2b6cb0;
 }
-.chip:disabled { background: #bee3f8; cursor: not-allowed; }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.chip.tagged { background: #bee3f8; }
 .chip.extra { border-color: #e9d8fd; color: #6b46c1; }
-.chip.extra:disabled { background: #e9d8fd; }
+.chip.extra.tagged { background: #e9d8fd; }
 
 .btn-clear-all {
   margin-top: 20px;
@@ -450,9 +461,7 @@ body {
   transition: width 0.15s ease;
 }
 
-.roster-modal { max-width: 460px; text-align: left; }
-.roster-switcher { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-.roster-switcher .roster-select { flex: 1; min-width: 0; margin-bottom: 0; }
+.roster-modal { max-width: 560px; text-align: left; }
 .roster-io { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .roster-name-edit-section { display: flex; gap: 8px; margin-bottom: 16px; }
 .roster-name-edit-section input {
@@ -477,7 +486,47 @@ body {
 .roster-number-input { width: 70px; }
 
 .roster-import { margin-bottom: 16px; }
-.csv-import-section { margin-top: 8px; }
+.roster-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.roster-tab {
+  position: relative;
+  top: 1px;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+}
+.roster-tab:hover { color: var(--text-secondary); }
+.roster-tab.active {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-surface);
+  color: var(--text-primary);
+}
+.roster-tab-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 16px;
+}
+.roster-tab-panel .roster-form { margin-bottom: 0; }
+#website-import-url {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
 .csv-import-textarea {
   width: 100%;
   padding: 8px 10px;
@@ -693,7 +742,7 @@ body {
 [data-theme="dark"] .rename-warning { background: #2c2410; border-color: #4a3c14; color: #e9c46a; }
 [data-theme="dark"] .template-custom-vars-section { background: #241f30; border-color: #40325a; }
 [data-theme="dark"] .template-custom-vars .chip { color: #c9a9f0; border-color: #40325a; }
-[data-theme="dark"] .chip:not(:disabled) { color: #7fb3e6; border-color: #3a5978; }
-[data-theme="dark"] .chip.extra:not(:disabled) { color: #c9a9f0; border-color: #40325a; }
+[data-theme="dark"] .chip:not(.tagged) { color: #7fb3e6; border-color: #3a5978; }
+[data-theme="dark"] .chip.extra:not(.tagged) { color: #c9a9f0; border-color: #40325a; }
 [data-theme="dark"] .tag-suggestions li.active { background: #1e2733; }
 [data-theme="dark"] .btn-filter.active { background: #1c3348; color: #7fb3e6; border-color: #2f4a63; }
