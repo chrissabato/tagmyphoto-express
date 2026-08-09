@@ -182,14 +182,87 @@ const BUILTIN_VARS = [
 // 'persons' is a 10th builtin, computed per-photo, never a form field.
 const BUILTIN_VAR_KEYS = new Set([...BUILTIN_VARS.map(v => v.key), 'persons']);
 
+// A var token is a plain word (\w+, the original builtin/custom style), an
+// explicit {CUSTOM:label} — the label can contain spaces, slashes, etc.
+// since it's only ever used as a fill-in prompt/lookup key, never as a bare
+// identifier — or a {SEQ:001}-style auto-incrementing sequence number.
+const VAR_TOKEN_RE = /\{(\w+|CUSTOM:[^}]+|SEQ:\d+)\}/gi;
+const SEQ_TOKEN_RE = /^SEQ:(\d+)$/i;
+
+function varTokenKey(token) {
+  const custom = /^CUSTOM:(.+)$/i.exec(token);
+  return custom ? custom[1].trim() : token;
+}
+
+// {SEQ:001} → 3-digit sequence starting at 1 (001, 002…); {SEQ:0100} →
+// 4-digit sequence starting at 100 (0100, 0101…). The digit count in the
+// spec sets the zero-padded width, its numeric value sets the start.
+function seqValueForIndex(spec, index) {
+  const start = parseInt(spec, 10);
+  return String(start + index - 1).padStart(spec.length, '0');
+}
+
+// CUSTOM: labels can contain spaces/slashes/etc., which aren't valid in an
+// HTML id — used only for generating a safe id/for pair, never for the
+// vars/fillIns lookup key (which stays the raw label text).
+function slugForId(str) {
+  return str.replace(/[^a-zA-Z0-9_-]+/g, '-');
+}
+
 function interpolateTemplate(template, vars) {
-  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+  return template.replace(VAR_TOKEN_RE, (full, token) => {
+    const key = varTokenKey(token);
+    return vars[key] ?? full;
+  });
+}
+
+function extractVarKeys(text) {
+  const found = [...text.matchAll(VAR_TOKEN_RE)].map(m => varTokenKey(m[1]));
+  return found.filter((v, i, a) => a.indexOf(v) === i);
 }
 
 function detectFillIns(fields) {
-  const all = Object.values(fields).join(' ');
-  const found = [...all.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
-  return found.filter((v, i, a) => !BUILTIN_VAR_KEYS.has(v) && a.indexOf(v) === i);
+  return extractVarKeys(Object.values(fields).join(' ')).filter(v => !BUILTIN_VAR_KEYS.has(v) && !SEQ_TOKEN_RE.test(v));
+}
+
+// --- File renaming: field mapping, builtin vars ---
+// Same {var} interpolation as metadata templates, plus vars that only make
+// sense for a filename (original name, sequence number, all tags). No
+// {ext} var — the original extension is always preserved automatically
+// (see buildNewFilename), so a pattern only ever describes the base name.
+const RENAME_BUILTIN_VARS = [
+  ...BUILTIN_VARS.filter(v => v.key !== 'photographer' && v.key !== 'org_name'),
+  { key: 'persons', label: "This photo's tagged names" },
+  { key: 'keywords', label: 'All tags/keywords' },
+  { key: 'filename', label: 'Original filename (no extension)' },
+  { key: 'SEQ:001', label: 'Sequence number — edit the digits to set start & padding, e.g. {SEQ:001} = 001, 002…, {SEQ:0100} starts at 100 with 4 digits' },
+];
+const RENAME_BUILTIN_VAR_KEYS = new Set(RENAME_BUILTIN_VARS.map(v => v.key));
+
+function detectRenameFillIns(pattern) {
+  return extractVarKeys(pattern).filter(v => !RENAME_BUILTIN_VAR_KEYS.has(v) && !SEQ_TOKEN_RE.test(v));
+}
+
+// Strips characters that are invalid (or, for trailing dot/space, silently
+// dropped by Windows) in a filename. Applied to the whole interpolated base
+// name rather than per-variable, since free-text vars like {persons} or a
+// custom field can contain anything.
+function sanitizeFilenamePart(str) {
+  const cleaned = str
+    .replace(/[\x00-\x1f<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '');
+  return cleaned || 'untitled';
+}
+
+// The pattern only ever produces a base name — the original extension is
+// always kept as-is and appended here, so patterns can't accidentally
+// double up or drop it.
+function buildNewFilename(baseName, originalName) {
+  const dot = originalName.lastIndexOf('.');
+  const ext = dot > 0 ? originalName.slice(dot) : '';
+  return sanitizeFilenamePart(baseName) + ext;
 }
 
 // Parses 'YYYY-MM-DD' as local y/m/d — new Date(dateStr) parses as UTC and
@@ -295,6 +368,8 @@ const state = {
   activeRosterId: null,
   metadataTemplates: [],  // { id, name, fields: Record<string,string> }
   activeTemplateId: null,
+  renameTemplates: [],    // { id, name, pattern: string }
+  activeRenameTemplateId: null,
 };
 
 function suggestedNames() {
@@ -321,6 +396,18 @@ function rosterNameSet() {
 
 function activeTemplate() {
   return state.metadataTemplates.find(t => t.id === state.activeTemplateId) || state.metadataTemplates[0] || null;
+}
+
+function activeRenameTemplate() {
+  return state.renameTemplates.find(t => t.id === state.activeRenameTemplateId) || state.renameTemplates[0] || null;
+}
+
+// Checked photos if any are checked, otherwise every photo in the folder —
+// same "checked-first" convention addTag uses for its targets.
+function renameTargets() {
+  return state.checkedIds.size > 0
+    ? state.photos.filter(p => state.checkedIds.has(p.id))
+    : state.photos;
 }
 
 // --- DOM refs ---
@@ -419,6 +506,38 @@ const el = {
   applyTemplateModal: $('#apply-template-modal'),
   applyTemplateProgressText: $('#apply-template-progress-text'),
   applyTemplateProgressFill: $('#apply-template-progress-fill'),
+
+  // File Renaming
+  btnManageRename: $('#btn-manage-rename'),
+  btnApplyRename: $('#btn-apply-rename'),
+  renameModal: $('#rename-modal'),
+  renameSelectModal: $('#rename-select-modal'),
+  btnRenameNew: $('#btn-rename-new'),
+  btnRenameRename: $('#btn-rename-rename'),
+  btnRenameDuplicate: $('#btn-rename-duplicate'),
+  btnRenameDelete: $('#btn-rename-delete'),
+  renameNameEditSection: $('#rename-name-edit-section'),
+  renameNameEditInput: $('#rename-name-edit-input'),
+  btnRenameNameEditSave: $('#btn-rename-name-edit-save'),
+  btnRenameNameEditCancel: $('#btn-rename-name-edit-cancel'),
+  renameVarsRow: $('#rename-vars-row'),
+  renamePatternInput: $('#rename-pattern-input'),
+  renameCustomVarsSection: $('#rename-custom-vars-section'),
+  renameCustomVars: $('#rename-custom-vars'),
+  renamePreview: $('#rename-preview'),
+  btnRenameClose: $('#btn-rename-close'),
+
+  renameApplyModal: $('#rename-apply-modal'),
+  renameApplySelect: $('#rename-apply-select'),
+  renameApplyCustomVarsSection: $('#rename-apply-custom-vars-section'),
+  renameApplyCustomVars: $('#rename-apply-custom-vars'),
+  renameApplyScope: $('#rename-apply-scope'),
+  btnRenameApplyConfirm: $('#btn-rename-apply-confirm'),
+  btnRenameApplyCancel: $('#btn-rename-apply-cancel'),
+
+  renameProgressModal: $('#rename-progress-modal'),
+  renameProgressText: $('#rename-progress-text'),
+  renameProgressFill: $('#rename-progress-fill'),
 };
 
 // --- Rendering ---
@@ -1540,10 +1659,10 @@ function renderTemplateApplyForm() {
     row.className = 'template-apply-row';
     const label = document.createElement('label');
     label.textContent = key;
-    label.htmlFor = `template-apply-var-${key}`;
+    label.htmlFor = `template-apply-var-${slugForId(key)}`;
     const input = document.createElement('input');
     input.type = 'text';
-    input.id = `template-apply-var-${key}`;
+    input.id = `template-apply-var-${slugForId(key)}`;
     input.value = templateApplyDraft.customVars[key] || '';
     input.addEventListener('input', () => { templateApplyDraft.customVars[key] = input.value; });
     row.appendChild(label);
@@ -1565,6 +1684,387 @@ el.btnTemplateApplyConfirm.addEventListener('click', async () => {
   };
   el.templateApplyModal.classList.add('hidden');
   await applyTemplateToAllPhotos(template, fillIns);
+});
+
+// --- File Renaming ---
+function persistRenameTemplates() {
+  return Promise.all([
+    kvSet('renameTemplates', state.renameTemplates),
+    kvSet('activeRenameTemplateId', state.activeRenameTemplateId),
+  ]);
+}
+
+// Same never-persisted-across-sessions rationale as templateApplyDraft.
+let renameApplyDraft = null; // { templateId, customVars: {} }
+
+// Renames one photo's underlying file. Prefers FileSystemFileHandle.move()
+// (renames in place, no dedicated Chrome version check needed — just
+// feature-detect) and falls back to copy-then-delete via the parent
+// directory handle for browsers where it isn't available.
+async function renamePhotoFile(photo, newName) {
+  if (typeof photo.fileHandle.move === 'function') {
+    await photo.fileHandle.move(newName);
+  } else {
+    const file = await photo.fileHandle.getFile();
+    const newHandle = await state.dirHandle.getFileHandle(newName, { create: true });
+    const writable = await newHandle.createWritable();
+    await writable.write(file);
+    await writable.close();
+    await state.dirHandle.removeEntry(photo.name);
+    photo.fileHandle = newHandle;
+  }
+  photo.name = newName;
+}
+
+// Per-photo variables for a rename pattern: EXIF capture date (JPEG only,
+// same lookup as applyTemplateToPhoto), the roster/tag-derived vars, the
+// original base filename, and this photo's 1-based position in the batch.
+// pattern is scanned for {SEQ:...} tokens so each one gets a value computed
+// from its own start/padding spec at this photo's position.
+async function computeRenameVars(photo, index, fillIns, pattern) {
+  let dateVars = computeDateVars('');
+  if (photo.isJpeg) {
+    try {
+      const exiv2 = await getExiv2();
+      const buf = new Uint8Array(await (await photo.fileHandle.getFile()).arrayBuffer());
+      dateVars = computeDateVarsFromExif(exiv2.read(buf)?.exif);
+    } catch (err) {
+      console.warn(`Could not read capture date for ${photo.name}:`, err);
+    }
+  }
+  const dot = photo.name.lastIndexOf('.');
+  const vars = {
+    ...fillIns,
+    ...dateVars,
+    persons: photo.personTags.join(', '),
+    keywords: photo.tags.join(', '),
+    filename: dot > 0 ? photo.name.slice(0, dot) : photo.name,
+  };
+  for (const [, spec] of pattern.matchAll(/\{SEQ:(\d+)\}/gi)) vars[`SEQ:${spec}`] = seqValueForIndex(spec, index);
+  return vars;
+}
+
+// Renames targetPhotos per the pattern. Plans every new name up front (a
+// dry run — no disk writes yet) so a pattern that collides with another
+// file, in or out of the batch, is caught and reported before anything is
+// touched, rather than partway through with some files already renamed.
+// Runs sequentially and blocks the UI while renaming, same rationale as
+// clearAllKeywords/applyTemplateToAllPhotos.
+async function renamePhotos(targetPhotos, pattern, fillIns) {
+  if (!targetPhotos.length) { alert('No photos to rename.'); return; }
+
+  const outsideNames = new Set(
+    state.photos.filter(p => !targetPhotos.includes(p)).map(p => p.name.toLowerCase())
+  );
+
+  const plan = [];
+  for (let i = 0; i < targetPhotos.length; i++) {
+    const photo = targetPhotos[i];
+    const vars = await computeRenameVars(photo, i + 1, fillIns, pattern);
+    const newName = buildNewFilename(interpolateTemplate(pattern, vars), photo.name);
+    plan.push({ photo, newName });
+  }
+
+  const claimed = new Map(); // lowercased newName -> photo.id that claimed it
+  for (const { photo, newName } of plan) {
+    const key = newName.toLowerCase();
+    if (key !== photo.name.toLowerCase() && outsideNames.has(key)) {
+      alert(`Can't rename "${photo.name}" to "${newName}" — a file with that name already exists in the folder.`);
+      return;
+    }
+    if (claimed.has(key) && claimed.get(key) !== photo.id) {
+      alert(`The rename pattern produces the same filename "${newName}" for multiple photos. Add {SEQ:001} (or another unique variable) to the pattern and try again.`);
+      return;
+    }
+    claimed.set(key, photo.id);
+  }
+
+  if (!confirm(`Rename ${plan.length} file${plan.length === 1 ? '' : 's'}? This can't be undone.`)) return;
+
+  el.renameProgressFill.style.width = '0%';
+  el.renameProgressText.textContent = `0 / ${plan.length}`;
+  el.renameProgressModal.classList.remove('hidden');
+
+  let done = 0;
+  const failures = [];
+  for (const { photo, newName } of plan) {
+    try {
+      if (newName !== photo.name) await renamePhotoFile(photo, newName);
+    } catch (err) {
+      console.error('Failed to rename', photo.name, err);
+      failures.push(photo.name);
+    }
+    done++;
+    el.renameProgressFill.style.width = `${Math.round((done / plan.length) * 100)}%`;
+    el.renameProgressText.textContent = `${done} / ${plan.length}`;
+  }
+
+  el.renameProgressModal.classList.add('hidden');
+  render();
+  if (failures.length) {
+    alert(`Renamed ${plan.length - failures.length}, failed on ${failures.length}: ${failures.join(', ')}`);
+  }
+}
+
+function renderApplyRenameButtonState() {
+  el.btnApplyRename.disabled = state.renameTemplates.length === 0;
+  el.btnApplyRename.title = state.renameTemplates.length === 0
+    ? 'Create a rename template first (Manage → + New)'
+    : '';
+}
+
+function renderRenameSelects() {
+  for (const sel of [el.renameSelectModal, el.renameApplySelect]) {
+    sel.innerHTML = '';
+    for (const template of state.renameTemplates) {
+      const opt = document.createElement('option');
+      opt.value = template.id;
+      opt.textContent = template.name;
+      sel.appendChild(opt);
+    }
+  }
+  el.renameSelectModal.value = state.activeRenameTemplateId || '';
+  if (renameApplyDraft) el.renameApplySelect.value = renameApplyDraft.templateId || '';
+}
+
+function setActiveRenameTemplate(id) {
+  state.activeRenameTemplateId = id;
+  persistRenameTemplates();
+  renderRenameSelects();
+  renderRenamePatternField();
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+}
+
+function renderRenameVarsRow() {
+  el.renameVarsRow.innerHTML = '';
+  for (const v of RENAME_BUILTIN_VARS) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = `{${v.key}}`;
+    chip.title = v.label;
+    chip.addEventListener('click', () => insertVarIntoRenamePattern(v.key));
+    el.renameVarsRow.appendChild(chip);
+  }
+}
+
+function insertVarIntoRenamePattern(key) {
+  const target = el.renamePatternInput;
+  const insertion = `{${key}}`;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  target.value = target.value.slice(0, start) + insertion + target.value.slice(end);
+  target.selectionStart = target.selectionEnd = start + insertion.length;
+  target.dispatchEvent(new Event('input'));
+  target.focus();
+  persistRenameTemplates();
+}
+
+function renderRenamePatternField() {
+  const template = activeRenameTemplate();
+  el.renamePatternInput.value = template ? (template.pattern || '') : '';
+}
+
+function renderRenameCustomVarsSection() {
+  const template = activeRenameTemplate();
+  const vars = template ? detectRenameFillIns(template.pattern || '') : [];
+  el.renameCustomVarsSection.classList.toggle('hidden', vars.length === 0);
+  el.renameCustomVars.innerHTML = '';
+  for (const v of vars) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = `{${v}}`;
+    el.renameCustomVars.appendChild(chip);
+  }
+}
+
+// Sample values used only to preview interpolation inside the editor —
+// never written anywhere.
+function buildRenamePreviewVars(pattern) {
+  const vars = {
+    persons: 'Alex Kim, Sam Lee',
+    keywords: 'beach, sunset',
+    filename: 'IMG_1234',
+    ...computeDateVars(new Date().toISOString().slice(0, 10)),
+  };
+  for (const key of detectRenameFillIns(pattern)) vars[key] = `[${key}]`;
+  for (const [, spec] of pattern.matchAll(/\{SEQ:(\d+)\}/gi)) vars[`SEQ:${spec}`] = seqValueForIndex(spec, 1);
+  return vars;
+}
+
+function renderRenamePreview() {
+  const template = activeRenameTemplate();
+  const pattern = template?.pattern || '';
+  el.renamePreview.innerHTML = '';
+  if (!pattern.trim()) {
+    el.renamePreview.innerHTML = '<span class="no-tags">No pattern yet.</span>';
+    return;
+  }
+  const vars = buildRenamePreviewVars(pattern);
+  const example = buildNewFilename(interpolateTemplate(pattern, vars), 'IMG_1234.jpg');
+  const row = document.createElement('div');
+  row.className = 'template-preview-row';
+  row.textContent = example;
+  el.renamePreview.appendChild(row);
+}
+
+el.btnManageRename.addEventListener('click', () => {
+  if (state.renameTemplates.length === 0) {
+    const template = { id: crypto.randomUUID(), name: 'My Rename Pattern', pattern: '' };
+    state.renameTemplates.push(template);
+    state.activeRenameTemplateId = template.id;
+    persistRenameTemplates();
+    renderApplyRenameButtonState();
+  }
+  renderRenameSelects();
+  renderRenameVarsRow();
+  renderRenamePatternField();
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+  el.renameNameEditSection.classList.add('hidden');
+  el.renameModal.classList.remove('hidden');
+});
+el.btnRenameClose.addEventListener('click', () => el.renameModal.classList.add('hidden'));
+el.renameSelectModal.addEventListener('change', () => setActiveRenameTemplate(el.renameSelectModal.value));
+
+el.renamePatternInput.addEventListener('input', () => {
+  const template = activeRenameTemplate();
+  if (!template) return;
+  template.pattern = el.renamePatternInput.value;
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+});
+el.renamePatternInput.addEventListener('change', () => persistRenameTemplates());
+
+let renameNameEditMode = 'new';
+
+function openRenameNameEdit(mode) {
+  renameNameEditMode = mode;
+  el.renameNameEditInput.value = mode === 'rename' ? (activeRenameTemplate()?.name || '') : '';
+  el.renameNameEditSection.classList.remove('hidden');
+  el.renameNameEditInput.focus();
+  el.renameNameEditInput.select();
+}
+
+el.btnRenameNew.addEventListener('click', () => openRenameNameEdit('new'));
+el.btnRenameRename.addEventListener('click', () => openRenameNameEdit('rename'));
+el.btnRenameNameEditCancel.addEventListener('click', () => el.renameNameEditSection.classList.add('hidden'));
+
+el.btnRenameNameEditSave.addEventListener('click', () => {
+  const name = el.renameNameEditInput.value.trim();
+  if (!name) return;
+  if (renameNameEditMode === 'new') {
+    const template = { id: crypto.randomUUID(), name, pattern: '' };
+    state.renameTemplates.push(template);
+    state.activeRenameTemplateId = template.id;
+  } else {
+    const template = activeRenameTemplate();
+    if (template) template.name = name;
+  }
+  persistRenameTemplates();
+  el.renameNameEditSection.classList.add('hidden');
+  renderRenameSelects();
+  renderRenamePatternField();
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+  renderApplyRenameButtonState();
+});
+
+el.renameNameEditInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); el.btnRenameNameEditSave.click(); }
+  else if (e.key === 'Escape') el.renameNameEditSection.classList.add('hidden');
+});
+
+el.btnRenameDuplicate.addEventListener('click', () => {
+  const template = activeRenameTemplate();
+  if (!template) return;
+  const copy = { id: crypto.randomUUID(), name: `${template.name} copy`, pattern: template.pattern };
+  state.renameTemplates.push(copy);
+  state.activeRenameTemplateId = copy.id;
+  persistRenameTemplates();
+  renderRenameSelects();
+  renderRenamePatternField();
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+});
+
+el.btnRenameDelete.addEventListener('click', () => {
+  const template = activeRenameTemplate();
+  if (!template) return;
+  if (!confirm(`Delete rename template "${template.name}"? This can't be undone.`)) return;
+  state.renameTemplates = state.renameTemplates.filter(t => t.id !== template.id);
+  state.activeRenameTemplateId = state.renameTemplates[0]?.id || null;
+  persistRenameTemplates();
+  renderRenameSelects();
+  renderRenamePatternField();
+  renderRenamePreview();
+  renderRenameCustomVarsSection();
+  renderApplyRenameButtonState();
+});
+
+// --- Apply-Rename flow ---
+el.btnApplyRename.addEventListener('click', () => {
+  if (state.renameTemplates.length === 0) return;
+  if (!renameApplyDraft) {
+    renameApplyDraft = {
+      templateId: (activeRenameTemplate() || state.renameTemplates[0]).id,
+      customVars: {},
+    };
+  }
+  renderRenameSelects();
+  renderRenameApplyForm();
+  el.renameApplyModal.classList.remove('hidden');
+});
+
+el.btnRenameApplyCancel.addEventListener('click', () => el.renameApplyModal.classList.add('hidden'));
+
+el.renameApplySelect.addEventListener('change', () => {
+  renameApplyDraft.templateId = el.renameApplySelect.value;
+  renderRenameApplyForm();
+});
+
+function renderRenameApplyForm() {
+  if (!renameApplyDraft) return;
+  el.renameApplySelect.value = renameApplyDraft.templateId;
+
+  const template = state.renameTemplates.find(t => t.id === renameApplyDraft.templateId);
+  const customKeys = template ? detectRenameFillIns(template.pattern || '') : [];
+  el.renameApplyCustomVarsSection.classList.toggle('hidden', customKeys.length === 0);
+  el.renameApplyCustomVars.innerHTML = '';
+  for (const key of customKeys) {
+    const row = document.createElement('div');
+    row.className = 'template-apply-row';
+    const label = document.createElement('label');
+    label.textContent = key;
+    label.htmlFor = `rename-apply-var-${slugForId(key)}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `rename-apply-var-${slugForId(key)}`;
+    input.value = renameApplyDraft.customVars[key] || '';
+    input.addEventListener('input', () => { renameApplyDraft.customVars[key] = input.value; });
+    row.appendChild(label);
+    row.appendChild(input);
+    el.renameApplyCustomVars.appendChild(row);
+  }
+
+  const targets = renameTargets();
+  el.renameApplyScope.textContent = state.checkedIds.size > 0
+    ? `Will rename ${targets.length} checked photo${targets.length === 1 ? '' : 's'}.`
+    : `Will rename all ${targets.length} photo${targets.length === 1 ? '' : 's'} in this folder (nothing checked).`;
+}
+
+el.btnRenameApplyConfirm.addEventListener('click', async () => {
+  const template = state.renameTemplates.find(t => t.id === renameApplyDraft.templateId);
+  if (!template) return;
+  if (!template.pattern || !template.pattern.trim()) {
+    alert('This rename template has no pattern set — add one in Manage first.');
+    return;
+  }
+  const fillIns = { ...renameApplyDraft.customVars };
+  const targets = renameTargets();
+  el.renameApplyModal.classList.add('hidden');
+  await renamePhotos(targets, template.pattern, fillIns);
 });
 
 // --- Folder loading ---
@@ -1720,6 +2220,13 @@ async function init() {
     ? savedActiveTemplateId
     : (state.metadataTemplates[0]?.id || null);
 
+  const savedRenameTemplates = await kvGet('renameTemplates');
+  state.renameTemplates = Array.isArray(savedRenameTemplates) ? savedRenameTemplates : [];
+  const savedActiveRenameTemplateId = await kvGet('activeRenameTemplateId');
+  state.activeRenameTemplateId = state.renameTemplates.some(t => t.id === savedActiveRenameTemplateId)
+    ? savedActiveRenameTemplateId
+    : (state.renameTemplates[0]?.id || null);
+
   // Migrate the old single-folder format (a lone handle under the
   // 'dirHandle' key) into the recent-folders list the first time this runs.
   if (!Array.isArray(await kvGet('recentFolders'))) {
@@ -1731,6 +2238,8 @@ async function init() {
   renderRosterSelects();
   renderTemplateSelects();
   renderApplyTemplateButtonState();
+  renderRenameSelects();
+  renderApplyRenameButtonState();
   render();
 }
 

@@ -123,6 +123,16 @@
         </div>
       </div>
 
+      <div class="template-section">
+        <p class="panel-label">File Renaming</p>
+        <div class="control-group">
+          <button id="btn-apply-rename" class="btn-apply-template">Rename Files…</button>
+          <button id="btn-manage-rename" class="btn-manage" title="Manage" aria-label="Manage">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </button>
+        </div>
+      </div>
+
       <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords…</button>
     </div>
   </div>
@@ -258,6 +268,85 @@
     <p id="apply-template-progress-text" class="progress-text">Starting…</p>
     <div class="progress-track">
       <div id="apply-template-progress-fill" class="progress-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Templates management modal -->
+<div id="rename-modal" class="modal-overlay hidden">
+  <div class="modal template-modal rename-modal">
+    <h2>Manage Rename Templates</h2>
+
+    <div class="roster-switcher">
+      <select id="rename-select-modal" class="roster-select"></select>
+      <button id="btn-rename-new" class="link-btn">+ New</button>
+      <button id="btn-rename-rename" class="link-btn">Rename</button>
+      <button id="btn-rename-duplicate" class="link-btn">Duplicate</button>
+      <button id="btn-rename-delete" class="link-btn link-btn-danger">Delete</button>
+    </div>
+    <div id="rename-name-edit-section" class="roster-name-edit-section hidden">
+      <input id="rename-name-edit-input" type="text" placeholder="Rename template name">
+      <button id="btn-rename-name-edit-save" class="btn btn-primary">Save</button>
+      <button id="btn-rename-name-edit-cancel" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <div class="template-editor-body">
+      <div class="template-editor-fields">
+        <p class="panel-label">Click a variable to insert it into the pattern</p>
+        <div id="rename-vars-row" class="chip-row template-vars-row"></div>
+        <div class="template-field-row">
+          <label for="rename-pattern-input">Filename pattern</label>
+          <textarea id="rename-pattern-input" rows="2" placeholder="e.g. {iptcyear4}-{iptcmonth}-{iptcday}_{persons}_{SEQ:001}"></textarea>
+        </div>
+        <p class="rename-hint">The original file extension is kept automatically — no need to include it in the pattern.</p>
+        <p class="rename-hint">Add your own fill-in fields with <code>{CUSTOM:Label}</code> — e.g. <code>{CUSTOM:Sport}</code> or <code>{CUSTOM:Opponent/Event}</code>. You'll be prompted for a value when you rename.</p>
+        <p class="rename-hint">Use <code>{SEQ:001}</code> for an auto-incrementing sequence — the digits set both the start and the padding, e.g. <code>{SEQ:001}</code> gives 001, 002…, and <code>{SEQ:0100}</code> gives 0100, 0101… starting at 100.</p>
+      </div>
+      <div class="template-editor-side">
+        <div id="rename-custom-vars-section" class="template-custom-vars-section hidden">
+          <p class="panel-label">Custom variables used</p>
+          <div id="rename-custom-vars"></div>
+        </div>
+        <div class="template-preview-section">
+          <p class="panel-label">Preview (sample data)</p>
+          <div id="rename-preview" class="template-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="btn-rename-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Apply-Rename fill-in form -->
+<div id="rename-apply-modal" class="modal-overlay hidden">
+  <div class="modal template-apply-modal">
+    <h2>Rename Files</h2>
+    <div class="template-apply-row">
+      <label for="rename-apply-select">Rename template</label>
+      <select id="rename-apply-select" class="roster-select"></select>
+    </div>
+    <div id="rename-apply-custom-vars-section" class="hidden">
+      <p class="panel-label">Custom variables</p>
+      <div id="rename-apply-custom-vars"></div>
+    </div>
+    <p id="rename-apply-scope" class="rename-hint"></p>
+    <div class="modal-actions">
+      <button id="btn-rename-apply-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="btn-rename-apply-confirm" class="btn btn-primary">Rename…</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename progress modal -->
+<div id="rename-progress-modal" class="modal-overlay hidden">
+  <div class="modal clear-all-modal">
+    <h2>Renaming Files…</h2>
+    <p id="rename-progress-text" class="progress-text">Starting…</p>
+    <div class="progress-track">
+      <div id="rename-progress-fill" class="progress-fill"></div>
     </div>
   </div>
 </div>

@@ -543,6 +543,11 @@ body {
   font-size: 14px;
 }
 
+/* File Renaming */
+.rename-modal { max-width: 640px; }
+.rename-modal .template-field-row textarea { min-height: 44px; }
+.rename-hint { font-size: 12px; color: #718096; margin-top: 6px; }
+
 /* Lightbox */
 .lightbox {
   position: fixed;
