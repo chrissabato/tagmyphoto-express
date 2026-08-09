@@ -1095,6 +1095,12 @@ el.btnAddTag.addEventListener('click', () => submitTagInput());
 
 // --- Global keyboard navigation ---
 window.addEventListener('keydown', e => {
+  // A focused <select> treats left/right arrow keys as its own native
+  // prev/next-option shortcut regardless of its current value, so it's
+  // excluded outright rather than only when non-empty like INPUT/TEXTAREA
+  // below — letting those through here too double-handles the keypress
+  // (see the recentFoldersSelect 'change' handler for what that caused).
+  if (e.target.tagName === 'SELECT') return;
   const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
   if (inInput && e.target.value !== '') return;
   if (state.photos.length === 0) return;
@@ -2592,6 +2598,13 @@ el.btnPickFolder.addEventListener('click', pickFolder);
 el.recentFoldersSelect.addEventListener('change', () => {
   const id = el.recentFoldersSelect.value;
   el.recentFoldersSelect.value = '';
+  // A native <select> keeps keyboard focus after choosing an option, and
+  // left/right arrow keys move its selection just like up/down — so
+  // without this, the very next ArrowRight/ArrowLeft press meant to
+  // navigate photos would *also* cycle this dropdown to a different
+  // recent folder and silently reopen it (looking like the load had
+  // restarted from scratch).
+  el.recentFoldersSelect.blur();
   if (id) reopenRecentFolder(id);
 });
 
