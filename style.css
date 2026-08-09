@@ -9,6 +9,8 @@ body {
 
 .hidden { display: none !important; }
 
+.app { display: flex; flex-direction: column; height: 100vh; }
+
 .btn {
   padding: 8px 20px;
   border-radius: 6px;
@@ -56,6 +58,7 @@ body {
   padding: 12px 24px;
   border-bottom: 1px solid #0d3f63;
   background: #0d3f63;
+  flex-shrink: 0;
 }
 .brand-logo { height: 32px; width: 32px; flex-shrink: 0; }
 .recent-folders-select {
@@ -73,13 +76,14 @@ body {
 .spacer { flex: 1; }
 .tagged-count { color: #d0b17b; font-size: 14px; }
 .topbar-settings-btn {
-  height: 34px;
-  width: 34px;
+  height: 42px;
+  width: 42px;
   flex-shrink: 0;
   background: #071726;
   border-color: rgba(255, 255, 255, 0.18);
 }
 .topbar-settings-btn:hover { background: #000; border-color: rgba(255, 255, 255, 0.3); }
+.help-btn { font-size: 24px; font-weight: 700; font-family: inherit; line-height: 1; }
 
 .empty-state {
   padding: 60px 24px;
@@ -94,7 +98,8 @@ body {
   display: flex;
   gap: 16px;
   padding: 16px;
-  height: calc(100vh - 65px);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -478,6 +483,13 @@ body {
 .btn-apply-template:disabled { opacity: 0.5; cursor: not-allowed; background: #2f7cc0; }
 
 .template-modal { max-width: 900px; max-height: 90vh; overflow-y: auto; text-align: left; }
+
+.help-modal { max-width: 640px; max-height: 85vh; overflow-y: auto; text-align: left; }
+.help-modal h3 { margin: 18px 0 6px; color: #0d3f63; font-size: 15px; }
+.help-modal h3:first-of-type { margin-top: 4px; }
+.help-modal p { margin: 0 0 4px; color: #4a5568; font-size: 14px; line-height: 1.5; }
+.help-modal code { background: #edf2f7; border-radius: 3px; padding: 1px 4px; font-size: 13px; }
+.help-modal .modal-actions { margin-top: 20px; }
 .template-editor-body {
   display: flex;
   gap: 20px;
@@ -555,6 +567,15 @@ body {
 .rename-modal { max-width: 640px; }
 .rename-modal .template-field-row textarea { min-height: 44px; }
 .rename-hint { font-size: 12px; color: #718096; margin-top: 6px; }
+.rename-warning {
+  font-size: 12px;
+  color: #9c4221;
+  background: #fffaf0;
+  border: 1px solid #fbd38d;
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-top: 8px;
+}
 
 /* Lightbox */
 .lightbox {

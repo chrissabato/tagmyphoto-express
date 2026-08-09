@@ -188,6 +188,14 @@ const BUILTIN_VAR_KEYS = new Set([...BUILTIN_VARS.map(v => v.key), 'persons']);
 // identifier — or a {SEQ:001}-style auto-incrementing sequence number.
 const VAR_TOKEN_RE = /\{(\w+|CUSTOM:[^}]+|SEQ:\d+)\}/gi;
 const SEQ_TOKEN_RE = /^SEQ:(\d+)$/i;
+const PATTERN_HAS_SEQ_RE = /\{SEQ:\d+\}/i;
+
+// A rename pattern needs its own {SEQ:...} to guarantee unique filenames —
+// unlike EXIF/roster-derived vars, nothing else in a pattern is guaranteed
+// to differ photo-to-photo.
+function patternHasSeq(pattern) {
+  return PATTERN_HAS_SEQ_RE.test(pattern || '');
+}
 
 function varTokenKey(token) {
   const custom = /^CUSTOM:(.+)$/i.exec(token);
@@ -425,6 +433,9 @@ const el = {
   taggedCount: $('#tagged-count'),
   btnPickFolder: $('#btn-pick-folder'),
   recentFoldersSelect: $('#recent-folders-select'),
+  btnOpenHelp: $('#btn-open-help'),
+  helpModal: $('#help-modal'),
+  btnHelpClose: $('#btn-help-close'),
   btnOpenSettings: $('#btn-open-settings'),
   settingsModal: $('#settings-modal'),
   settingsPhotographer: $('#settings-photographer'),
@@ -534,6 +545,7 @@ const el = {
   renamePatternInput: $('#rename-pattern-input'),
   renameCustomVarsSection: $('#rename-custom-vars-section'),
   renameCustomVars: $('#rename-custom-vars'),
+  renameSeqWarning: $('#rename-seq-warning'),
   renamePreview: $('#rename-preview'),
   btnRenameClose: $('#btn-rename-close'),
 
@@ -994,6 +1006,10 @@ for (const overlay of document.querySelectorAll('.modal-overlay:not(.modal-no-di
     if (e.target === overlay) overlay.classList.add('hidden');
   });
 }
+
+// --- Help ---
+el.btnOpenHelp.addEventListener('click', () => el.helpModal.classList.remove('hidden'));
+el.btnHelpClose.addEventListener('click', () => el.helpModal.classList.add('hidden'));
 
 // --- Settings ---
 el.btnOpenSettings.addEventListener('click', () => {
@@ -1930,6 +1946,7 @@ function buildRenamePreviewVars(pattern) {
 function renderRenamePreview() {
   const template = activeRenameTemplate();
   const pattern = template?.pattern || '';
+  el.renameSeqWarning.classList.toggle('hidden', !pattern.trim() || patternHasSeq(pattern));
   el.renamePreview.innerHTML = '';
   if (!pattern.trim()) {
     el.renamePreview.innerHTML = '<span class="no-tags">No pattern yet.</span>';
@@ -1945,7 +1962,7 @@ function renderRenamePreview() {
 
 el.btnManageRename.addEventListener('click', () => {
   if (state.renameTemplates.length === 0) {
-    const template = { id: crypto.randomUUID(), name: 'My Rename Pattern', pattern: '' };
+    const template = { id: crypto.randomUUID(), name: 'My Rename Pattern', pattern: '{SEQ:001}' };
     state.renameTemplates.push(template);
     state.activeRenameTemplateId = template.id;
     persistRenameTemplates();
@@ -1989,7 +2006,7 @@ el.btnRenameNameEditSave.addEventListener('click', () => {
   const name = el.renameNameEditInput.value.trim();
   if (!name) return;
   if (renameNameEditMode === 'new') {
-    const template = { id: crypto.randomUUID(), name, pattern: '' };
+    const template = { id: crypto.randomUUID(), name, pattern: '{SEQ:001}' };
     state.renameTemplates.push(template);
     state.activeRenameTemplateId = template.id;
   } else {
@@ -2093,6 +2110,10 @@ el.btnRenameApplyConfirm.addEventListener('click', async () => {
   if (!template) return;
   if (!template.pattern || !template.pattern.trim()) {
     alert('This rename template has no pattern set — add one in Manage first.');
+    return;
+  }
+  if (!patternHasSeq(template.pattern)) {
+    alert('This rename template has no {SEQ:...} variable — add one (e.g. {SEQ:001}) in Manage so every photo gets a unique filename.');
     return;
   }
   const fillIns = { ...renameApplyDraft.customVars };

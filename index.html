@@ -52,8 +52,9 @@
     </select>
     <span id="tagged-count" class="tagged-count"></span>
     <div class="spacer"></div>
+    <button id="btn-open-help" class="btn-manage topbar-settings-btn help-btn" title="Help" aria-label="Help">?</button>
     <button id="btn-open-settings" class="btn-manage topbar-settings-btn" title="Settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" stroke="none"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"></path></svg>
     </button>
   </header>
 
@@ -106,7 +107,7 @@
       <div class="control-group">
         <select id="roster-select" class="roster-select"></select>
         <button id="btn-manage-roster" class="btn-manage" title="Manage" aria-label="Manage">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"></path></svg>
         </button>
       </div>
       <div id="roster-buttons" class="chip-row"></div>
@@ -121,7 +122,7 @@
         <div class="control-group">
           <button id="btn-apply-template" class="btn-apply-template">Apply Template</button>
           <button id="btn-manage-templates" class="btn-manage" title="Manage" aria-label="Manage">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"></path></svg>
           </button>
         </div>
       </div>
@@ -131,12 +132,66 @@
         <div class="control-group">
           <button id="btn-apply-rename" class="btn-apply-template">Rename Files</button>
           <button id="btn-manage-rename" class="btn-manage" title="Manage" aria-label="Manage">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"></path></svg>
           </button>
         </div>
       </div>
 
       <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div id="help-modal" class="modal-overlay hidden">
+  <div class="modal help-modal">
+    <h2>Help</h2>
+
+    <h3>Getting started</h3>
+    <p>Click <strong>Open Folder</strong> and choose a folder of photos. Everything happens on your
+       device — tags and metadata are saved directly into each JPEG's IPTC/XMP data, and nothing is
+       ever uploaded anywhere. Use <strong>Reopen recent</strong> to jump back into a folder you used before.</p>
+
+    <h3>Tagging photos</h3>
+    <p>Select a photo (click a thumbnail, or use <code>&larr;</code> / <code>&rarr;</code>), then type a
+       name or number into the box and press <strong>Enter</strong> (or click <strong>Add</strong>) to
+       tag it. Roster buttons let you tag someone with a single click. Check the box on one or more
+       thumbnails to limit Apply Template / Rename Files to just those photos — with nothing checked,
+       they apply to every photo in the folder. <strong>Show untagged</strong> filters the thumbnail
+       strip down to photos with no tags yet.</p>
+
+    <h3>Roster</h3>
+    <p>Your roster is the list of names/numbers you tag most often. Use the gear icon to manage
+       rosters — add people one at a time, paste in a CSV (<code>number,name</code> per line), switch
+       between multiple rosters, or export/import them as JSON.</p>
+
+    <h3>Metadata Templates</h3>
+    <p>Build a reusable set of IPTC/XMP fields (Description, Headline, Credit, etc.) under the gear
+       icon. Any field can include variables like <code>{photographer}</code>, <code>{org_name}</code>,
+       <code>{iptcyear4}</code>/<code>{iptcmonth}</code>/<code>{iptcday}</code>, <code>{persons}</code>,
+       or your own <code>{CUSTOM:Label}</code> — you'll be prompted for custom values when you apply.
+       <strong>Apply Template</strong> writes the filled-in fields into every targeted photo at once.</p>
+
+    <h3>File Renaming</h3>
+    <p>Build a filename pattern under the gear icon using the same kind of variables (dates,
+       <code>{persons}</code>, <code>{CUSTOM:Label}</code>) plus <code>{SEQ:001}</code> for an
+       auto-incrementing number — the digits set both the starting value and the zero-padded width,
+       e.g. <code>{SEQ:001}</code> gives 001, 002…, and <code>{SEQ:0100}</code> starts at 100 with 4
+       digits. Every pattern needs a <code>{SEQ:...}</code> so renamed files don't collide. The
+       original file extension is kept automatically.</p>
+
+    <h3>Settings</h3>
+    <p>Save your Photographer and Organization name once (top-right gear icon) and they'll
+       auto-fill whenever you open Apply Template — no need to retype them each time.</p>
+
+    <h3>Keyboard shortcuts</h3>
+    <p><code>&larr;</code> / <code>&rarr;</code> — previous/next photo &nbsp;&middot;&nbsp;
+       <code>Enter</code> — add the typed tag &nbsp;&middot;&nbsp;
+       <code>&uarr;</code> / <code>&darr;</code> — move through tag suggestions &nbsp;&middot;&nbsp;
+       <code>Esc</code> — clear the tag box</p>
+
+    <div class="modal-actions">
+      <button id="btn-help-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -241,7 +296,7 @@
       <div class="template-editor-side">
         <div id="template-custom-vars-section" class="template-custom-vars-section hidden">
           <p class="panel-label">Custom variables used</p>
-          <div id="template-custom-vars"></div>
+          <div id="template-custom-vars" class="template-custom-vars"></div>
         </div>
         <div class="template-preview-section">
           <p class="panel-label">Preview (sample data)</p>
@@ -320,6 +375,7 @@
           <label for="rename-pattern-input">Filename pattern</label>
           <textarea id="rename-pattern-input" rows="2" placeholder="e.g. {iptcyear4}-{iptcmonth}-{iptcday}_{persons}_{SEQ:001}"></textarea>
         </div>
+        <p id="rename-seq-warning" class="rename-warning hidden">This pattern has no <code>{SEQ:...}</code> — add one (e.g. <code>{SEQ:001}</code>) so every photo gets a unique filename.</p>
         <p class="rename-hint">The original file extension is kept automatically — no need to include it in the pattern.</p>
         <p class="rename-hint">Add your own fill-in fields with <code>{CUSTOM:Label}</code> — e.g. <code>{CUSTOM:Sport}</code> or <code>{CUSTOM:Opponent/Event}</code>. You'll be prompted for a value when you rename.</p>
         <p class="rename-hint">Use <code>{SEQ:001}</code> for an auto-incrementing sequence — the digits set both the start and the padding, e.g. <code>{SEQ:001}</code> gives 001, 002…, and <code>{SEQ:0100}</code> gives 0100, 0101… starting at 100.</p>
@@ -327,7 +383,7 @@
       <div class="template-editor-side">
         <div id="rename-custom-vars-section" class="template-custom-vars-section hidden">
           <p class="panel-label">Custom variables used</p>
-          <div id="rename-custom-vars"></div>
+          <div id="rename-custom-vars" class="template-custom-vars"></div>
         </div>
         <div class="template-preview-section">
           <p class="panel-label">Preview (sample data)</p>
