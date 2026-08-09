@@ -67,6 +67,6 @@ adapted to run without a backend.
 ## Deploying to GitHub Pages
 
 This is a static site — no build step. Push `index.html`, `style.css`,
-`app.js`, `logo.svg`, and the `vendor/` folder to a repository and enable
-GitHub Pages (Settings → Pages → Deploy from branch), pointing at the
-branch/folder containing these files.
+`app.js`, `logo.svg`, `og-image.jpg`, and the `vendor/` folder to a
+repository and enable GitHub Pages (Settings → Pages → Deploy from branch),
+pointing at the branch/folder containing these files.
