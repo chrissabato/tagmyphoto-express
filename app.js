@@ -80,6 +80,15 @@ async function readTagsFromFile(file) {
 // there), XMP dc:subject as one bag entry per tag (writeString() reliably
 // appends to that field once it's non-empty, which starting from a
 // removeKey()'d empty field it always is).
+//
+// Also re-syncs Xmp.iptcExt.PersonInImage from photo.personTags (the subset
+// of tags picked from the roster, rather than typed free-hand — see addTag)
+// in the same read-modify-write pass, unless a template has locked it with
+// a custom value (photo.personInImageLocked). Doing this here rather than
+// as a separate write avoids a lost-update race: two independent
+// read-modify-write passes against the same file, run concurrently for the
+// same photo, would each read before the other's write lands and clobber
+// it.
 async function writeTagsToFile(photo, tags) {
   if (!photo.isJpeg || !photo.fileHandle) return;
   const exiv2 = await getExiv2();
@@ -94,6 +103,10 @@ async function writeTagsToFile(photo, tags) {
       for (const tag of unique) {
         buf = exiv2.writeString(buf, XMP_SUBJECT_KEY, tag);
       }
+    }
+    if (!photo.personInImageLocked) {
+      const personConfig = TEMPLATE_FIELD_MAP.find(f => f.key === 'PersonInImage');
+      buf = writeTemplateField(exiv2, buf, personConfig, photo.personTags.join(', '));
     }
   } catch (err) {
     console.error('Failed to write tags to', photo.name, err);
@@ -195,6 +208,20 @@ function computeDateVars(dateStr) {
     iptcyear4: String(date.getFullYear()),
     iptcyear2: String(date.getFullYear()).slice(-2),
   };
+}
+
+// EXIF date/time values are 'YYYY:MM:DD HH:MM:SS'; DateTimeOriginal (when
+// the shutter fired) is preferred over DateTimeDigitized/DateTime (file
+// write time, e.g. from scanning or editing) since it's what "event date"
+// actually means for a photo.
+function computeDateVarsFromExif(exif) {
+  const raw = exif?.['Exif.Photo.DateTimeOriginal']
+    || exif?.['Exif.Photo.DateTimeDigitized']
+    || exif?.['Exif.Image.DateTime'];
+  const match = raw && /^(\d{4}):(\d{2}):(\d{2})/.exec(raw);
+  if (!match) return computeDateVars('');
+  const [, y, m, d] = match;
+  return computeDateVars(`${y}-${m}-${d}`);
 }
 
 // Writes one interpolated field value using its Exiv2 key mapping. Modes
@@ -382,7 +409,6 @@ const el = {
 
   templateApplyModal: $('#template-apply-modal'),
   templateApplySelect: $('#template-apply-select'),
-  templateApplyDate: $('#template-apply-date'),
   templateApplyPhotographer: $('#template-apply-photographer'),
   templateApplyOrg: $('#template-apply-org'),
   templateApplyCustomVarsSection: $('#template-apply-custom-vars-section'),
@@ -529,7 +555,7 @@ function renderRosterPanel() {
     btn.className = 'chip';
     btn.textContent = (member.number ? `#${member.number} ` : '') + member.name;
     btn.disabled = !photo || taggedSet.has(member.name.toLowerCase());
-    btn.addEventListener('click', () => addTag(member.name));
+    btn.addEventListener('click', () => addTag(member.name, true));
     el.rosterButtons.appendChild(btn);
   }
 
@@ -580,7 +606,11 @@ function goNext() {
 }
 
 // --- Tagging ---
-async function addTag(name) {
+// isRosterMember distinguishes a name picked from the roster (button click
+// or an autocomplete suggestion flagged isRoster) from one typed by hand:
+// only roster-sourced tags get mirrored into PersonInImage, per the app's
+// person-vs-keyword split (see writeTagsToFile).
+async function addTag(name, isRosterMember = false) {
   name = name.trim();
   if (!name) return;
   const targets = state.checkedIds.size > 0 ? [...state.checkedIds] : [state.selectedPhotoId];
@@ -590,6 +620,9 @@ async function addTag(name) {
     if (!photo) continue;
     if (photo.tags.some(t => t.toLowerCase() === name.toLowerCase())) continue;
     photo.tags.push(name);
+    if (isRosterMember && !photo.personTags.some(t => t.toLowerCase() === name.toLowerCase())) {
+      photo.personTags.push(name);
+    }
     writes.push(writeTagsToFile(photo, photo.tags));
   }
   render();
@@ -604,6 +637,7 @@ async function removeTag(photoId, name) {
   const photo = state.photos.find(p => p.id === photoId);
   if (!photo) return;
   photo.tags = photo.tags.filter(t => t !== name);
+  photo.personTags = photo.personTags.filter(t => t.toLowerCase() !== name.toLowerCase());
   render();
   try {
     const removedFromFile = await removeTagFromFile(photo, photo.tags, name);
@@ -645,6 +679,7 @@ async function clearAllKeywords() {
   const failures = [];
   for (const photo of taggedPhotos) {
     try {
+      photo.personTags = [];
       await writeTagsToFile(photo, []);
       photo.tags = [];
     } catch (err) {
@@ -725,7 +760,7 @@ function hideSuggestions() {
 function submitTagInput(item) {
   const name = typeof item === 'string' ? item : (item ? item.value : el.tagInput.value.trim());
   if (!name) return;
-  addTag(name);
+  addTag(name, !!(item && item.isRoster));
   el.tagInput.value = '';
   hideSuggestions();
   el.tagInput.focus();
@@ -1085,31 +1120,47 @@ function persistTemplates() {
 
 // Populated when the Apply-Template form opens; discarded when it closes.
 // Deliberately never touches IndexedDB — fill-in values (photographer name,
-// event date, custom vars) are per-session only, per the user's decision
-// that these shouldn't persist across sessions.
-let templateApplyDraft = null; // { templateId, eventDate, photographer, orgName, customVars: {} }
+// custom vars) are per-session only, per the user's decision that these
+// shouldn't persist across sessions. Date vars come from each photo's own
+// EXIF capture date instead (see computeDateVarsFromExif), not from here.
+let templateApplyDraft = null; // { templateId, photographer, orgName, customVars: {} }
 
 // Interpolates one template's fields against the given fill-ins (plus
 // per-photo 'persons') and writes them into the photo's file. Keywords
 // routes through writeTagsToFile so template-driven and manual tag edits
 // never diverge; the remaining fields go through one additional
-// read-modify-write pass. Keywords/PersonInImage default to the photo's
-// current tag list when the template doesn't define them itself, matching
-// the original app's preset behavior.
+// read-modify-write pass. Keywords defaults to the photo's current tag
+// list when the template doesn't define it; PersonInImage defaults to the
+// roster-sourced subset (see writeTagsToFile) unless the template sets it
+// explicitly, in which case that value locks the field going forward.
 async function applyTemplateToPhoto(photo, template, fillIns) {
-  const vars = { ...fillIns, persons: photo.tags.join(', ') };
+  const exiv2 = await getExiv2();
+  let dateVars = computeDateVars('');
+  try {
+    const initialBuf = new Uint8Array(await (await photo.fileHandle.getFile()).arrayBuffer());
+    dateVars = computeDateVarsFromExif(exiv2.read(initialBuf)?.exif);
+  } catch (err) {
+    console.warn(`Could not read capture date for ${photo.name}:`, err);
+  }
+  const vars = { ...fillIns, ...dateVars, persons: photo.personTags.join(', ') };
   const values = {};
   for (const [key, raw] of Object.entries(template.fields)) {
     if (raw && raw.trim()) values[key] = interpolateTemplate(raw, vars);
   }
   if (values.Keywords === undefined) values.Keywords = photo.tags.join(', ');
-  if (values.PersonInImage === undefined) values.PersonInImage = photo.tags.join(', ');
+  // A template that explicitly sets PersonInImage wins from here on — lock
+  // it so roster tag edits (see writeTagsToFile) stop overwriting it.
+  // Otherwise default it to the roster-sourced tags, same as normal syncing.
+  if (values.PersonInImage !== undefined) {
+    photo.personInImageLocked = true;
+  } else {
+    values.PersonInImage = photo.personTags.join(', ');
+  }
 
   const keywords = [...new Set(splitKeywords(values.Keywords))];
   await writeTagsToFile(photo, keywords);
   photo.tags = keywords;
 
-  const exiv2 = await getExiv2();
   let buf = new Uint8Array(await (await photo.fileHandle.getFile()).arrayBuffer());
   let changed = false;
   for (const config of TEMPLATE_FIELD_MAP) {
@@ -1457,7 +1508,6 @@ el.btnApplyTemplate.addEventListener('click', () => {
   if (!templateApplyDraft) {
     templateApplyDraft = {
       templateId: (activeTemplate() || state.metadataTemplates[0]).id,
-      eventDate: '',
       photographer: '',
       orgName: '',
       customVars: {},
@@ -1478,7 +1528,6 @@ el.templateApplySelect.addEventListener('change', () => {
 function renderTemplateApplyForm() {
   if (!templateApplyDraft) return;
   el.templateApplySelect.value = templateApplyDraft.templateId;
-  el.templateApplyDate.value = templateApplyDraft.eventDate;
   el.templateApplyPhotographer.value = templateApplyDraft.photographer;
   el.templateApplyOrg.value = templateApplyDraft.orgName;
 
@@ -1503,7 +1552,6 @@ function renderTemplateApplyForm() {
   }
 }
 
-el.templateApplyDate.addEventListener('input', () => { templateApplyDraft.eventDate = el.templateApplyDate.value; });
 el.templateApplyPhotographer.addEventListener('input', () => { templateApplyDraft.photographer = el.templateApplyPhotographer.value; });
 el.templateApplyOrg.addEventListener('input', () => { templateApplyDraft.orgName = el.templateApplyOrg.value; });
 
@@ -1513,7 +1561,6 @@ el.btnTemplateApplyConfirm.addEventListener('click', async () => {
   const fillIns = {
     photographer: templateApplyDraft.photographer,
     org_name: templateApplyDraft.orgName,
-    ...computeDateVars(templateApplyDraft.eventDate),
     ...templateApplyDraft.customVars,
   };
   el.templateApplyModal.classList.add('hidden');
@@ -1534,6 +1581,7 @@ async function loadFolder(dirHandle) {
   }
   entries.sort((a, b) => a.name.localeCompare(b.name));
 
+  const rNames = rosterNameSet();
   for (const fileHandle of entries) {
     const file = await fileHandle.getFile();
     const tags = await readTagsFromFile(file);
@@ -1544,6 +1592,12 @@ async function loadFolder(dirHandle) {
       url: URL.createObjectURL(file),
       isJpeg: isJpegFile(file),
       tags,
+      // Which tags count as "from the roster" for PersonInImage syncing
+      // (see addTag). We don't track this across sessions, so on load we
+      // approximate it by matching existing tags against the active
+      // roster's current member names.
+      personTags: tags.filter(t => rNames.has(t.toLowerCase())),
+      personInImageLocked: false,
     });
   }
 
