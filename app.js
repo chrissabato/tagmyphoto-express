@@ -1134,6 +1134,21 @@ el.lightbox.addEventListener('click', e => {
   if (e.target === el.lightbox || e.target === el.lightboxImg) el.lightbox.classList.add('hidden');
 });
 
+// --- Scroll-wheel navigation ---
+// A trackpad swipe fires many small wheel events in quick succession (a
+// physical mouse wheel fires one discrete event per notch), so without a
+// cooldown a single swipe would flip through several photos instead of one.
+let wheelCooldown = false;
+el.mainPhoto.parentElement.addEventListener('wheel', e => {
+  if (state.photos.length === 0) return;
+  e.preventDefault();
+  if (wheelCooldown) return;
+  wheelCooldown = true;
+  setTimeout(() => { wheelCooldown = false; }, 200);
+  if (e.deltaY > 0) goNext();
+  else if (e.deltaY < 0) goPrev();
+}, { passive: false });
+
 // --- Roster management ---
 function renderRosterModalList() {
   el.rosterList.innerHTML = '';
