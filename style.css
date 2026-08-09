@@ -35,6 +35,19 @@ body {
 }
 .link-btn-danger { color: #e53e3e; }
 
+.btn-manage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid #4a5568;
+  background: #4a5568;
+  color: #fff;
+  cursor: pointer;
+}
+.btn-manage:hover { background: #2d3748; border-color: #2d3748; }
+
 /* Top bar */
 .topbar {
   display: flex;
@@ -281,12 +294,6 @@ body {
   min-height: 0;
   overflow-y: auto;
 }
-.roster-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
 .panel-label {
   font-weight: 500;
   font-size: 13px;
@@ -294,6 +301,10 @@ body {
   margin: 0;
 }
 .extra-label { margin-top: 16px; margin-bottom: 8px; }
+.roster-panel > .panel-label,
+.template-section > .panel-label {
+  margin-bottom: 8px;
+}
 .roster-select {
   width: 100%;
   margin-bottom: 10px;
@@ -303,6 +314,23 @@ body {
   font-size: 13px;
   background: #fff;
   color: #2d3748;
+}
+
+.control-group { display: flex; margin-bottom: 10px; }
+.control-group > .roster-select,
+.control-group > .btn-apply-template {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin-bottom: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.control-group > .btn-manage {
+  flex-shrink: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
@@ -322,14 +350,14 @@ body {
   margin-top: 20px;
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #feb2b2;
+  border: 1px solid #c53030;
   border-radius: 6px;
-  background: #fff5f5;
-  color: #c53030;
+  background: #c53030;
+  color: #fff;
   cursor: pointer;
   font-size: 13px;
 }
-.btn-clear-all:hover { background: #fed7d7; }
+.btn-clear-all:hover { background: #a92a2a; }
 
 /* Modals */
 .modal-overlay {
@@ -431,15 +459,15 @@ body {
 .btn-apply-template {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #90cdf4;
+  border: 1px solid #2f7cc0;
   border-radius: 6px;
-  background: #ebf8ff;
-  color: #2b6cb0;
+  background: #2f7cc0;
+  color: #fff;
   cursor: pointer;
   font-size: 13px;
 }
-.btn-apply-template:hover { background: #bee3f8; }
-.btn-apply-template:disabled { opacity: 0.5; cursor: not-allowed; background: #ebf8ff; }
+.btn-apply-template:hover { background: #266aa6; }
+.btn-apply-template:disabled { opacity: 0.5; cursor: not-allowed; background: #2f7cc0; }
 
 .template-modal { max-width: 900px; max-height: 90vh; overflow-y: auto; text-align: left; }
 .template-editor-body {
