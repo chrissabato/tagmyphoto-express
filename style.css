@@ -578,6 +578,8 @@ body {
 .btn-apply-template:disabled { opacity: 0.5; cursor: not-allowed; background: #2f7cc0; }
 
 .template-modal { max-width: 900px; max-height: 90vh; overflow-y: auto; text-align: left; }
+#template-modal .template-modal { max-width: 1200px; }
+#template-field-Description { min-height: 80px; }
 
 .help-modal { max-width: 640px; max-height: 85vh; overflow-y: auto; text-align: left; }
 .help-modal h3 { margin: 18px 0 6px; color: var(--accent-heading); font-size: 15px; }
