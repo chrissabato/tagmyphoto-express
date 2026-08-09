@@ -1,6 +1,7 @@
 * { box-sizing: border-box; }
 
 :root {
+  color-scheme: light;
   --bg-page: #f7fafc;
   --bg-surface: #ffffff;
   --bg-surface-alt: #f7fafc;
@@ -16,6 +17,7 @@
   --shadow-color: rgba(0, 0, 0, 0.2);
 }
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-page: #13171d;
   --bg-surface: #1b212a;
   --bg-surface-alt: #171c23;
@@ -159,6 +161,10 @@ body {
   flex: 1;
   min-height: 0;
 }
+[data-theme="dark"] .thumb-list::-webkit-scrollbar { width: 10px; }
+[data-theme="dark"] .thumb-list::-webkit-scrollbar-track { background: var(--bg-page); }
+[data-theme="dark"] .thumb-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+[data-theme="dark"] .thumb-list::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 .thumb {
   border-radius: 6px;
   overflow: hidden;
@@ -687,3 +693,7 @@ body {
 [data-theme="dark"] .rename-warning { background: #2c2410; border-color: #4a3c14; color: #e9c46a; }
 [data-theme="dark"] .template-custom-vars-section { background: #241f30; border-color: #40325a; }
 [data-theme="dark"] .template-custom-vars .chip { color: #c9a9f0; border-color: #40325a; }
+[data-theme="dark"] .chip:not(:disabled) { color: #7fb3e6; border-color: #3a5978; }
+[data-theme="dark"] .chip.extra:not(:disabled) { color: #c9a9f0; border-color: #40325a; }
+[data-theme="dark"] .tag-suggestions li.active { background: #1e2733; }
+[data-theme="dark"] .btn-filter.active { background: #1c3348; color: #7fb3e6; border-color: #2f4a63; }

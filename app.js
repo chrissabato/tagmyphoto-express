@@ -976,7 +976,9 @@ el.mainPhoto.parentElement.addEventListener('click', () => {
   el.lightbox.classList.remove('hidden');
 });
 el.btnLightboxClose.addEventListener('click', () => el.lightbox.classList.add('hidden'));
-el.lightbox.addEventListener('click', e => { if (e.target === el.lightbox) el.lightbox.classList.add('hidden'); });
+el.lightbox.addEventListener('click', e => {
+  if (e.target === el.lightbox || e.target === el.lightboxImg) el.lightbox.classList.add('hidden');
+});
 
 // --- Roster management ---
 function renderRosterModalList() {
