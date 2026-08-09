@@ -35,6 +35,36 @@ function isJpegFile(file) {
   return file.type === 'image/jpeg' || JPEG_EXT_RE.test(file.name);
 }
 
+// Downscaled preview generation — this app targets large camera JPEGs
+// (10-20+ MB, many megapixels), which are far more pixels than a thumbnail
+// or an on-screen viewer needs. Decoding one at full resolution just to
+// shrink it with CSS is what makes the thumbnail strip and photo-switching
+// feel slow on those files. createImageBitmap's resize options let the
+// browser's own decoder produce the downscaled bitmap directly — Chromium's
+// JPEG decoder can skip most of the IDCT work for a large scale-down,
+// which is far cheaper than a full decode. Only one of resizeWidth/
+// resizeHeight is ever passed in below, since specifying both distorts the
+// aspect ratio (specifying just one preserves it).
+async function createScaledObjectUrl(file, resizeOptions) {
+  const bitmap = await createImageBitmap(file, { ...resizeOptions, resizeQuality: 'medium' });
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  bitmap.close();
+  // JPEG sources can't have transparency, so re-encode as JPEG — measured
+  // several times smaller than PNG for a downscaled camera photo, with no
+  // visible quality loss at this size. Anything else (png/gif/webp) might
+  // have transparency, so stays lossless rather than flattening
+  // transparent areas to black.
+  const format = isJpegFile(file) ? 'image/jpeg' : 'image/png';
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, format, 0.9));
+  return URL.createObjectURL(blob);
+}
+
+const THUMB_HEIGHT = 220; // matches the 100px CSS thumb height, ~2x for HiDPI
+const MAIN_PREVIEW_WIDTH = 1600; // comfortably covers any on-screen viewer size
+
 function splitKeywords(text) {
   return text.split(/[;,]/).map(s => s.trim()).filter(Boolean);
 }
@@ -555,6 +585,10 @@ const el = {
   applyTemplateProgressText: $('#apply-template-progress-text'),
   applyTemplateProgressFill: $('#apply-template-progress-fill'),
 
+  folderLoadModal: $('#folder-load-modal'),
+  folderLoadProgressText: $('#folder-load-progress-text'),
+  folderLoadProgressFill: $('#folder-load-progress-fill'),
+
   // File Renaming
   btnManageRename: $('#btn-manage-rename'),
   btnApplyRename: $('#btn-apply-rename'),
@@ -597,6 +631,20 @@ function render() {
   renderRosterPanel();
 }
 
+// Lighter-weight path for a plain selection change (arrow keys, clicking a
+// thumbnail) with no checked-set change involved. renderThumbs() tears down
+// and recreates every thumbnail <img> in the folder, which is necessary
+// after a folder loads or the untagged filter toggles, but doing that on
+// every single Next/Prev is what made switching between photos feel slow
+// on large folders — just to move a selection highlight, it was rebuilding
+// (and re-decoding) potentially hundreds of thumbnails that hadn't changed.
+function renderSelection() {
+  el.thumbList.querySelector('.thumb.selected')?.classList.remove('selected');
+  el.thumbList.querySelector(`[data-id="${state.selectedPhotoId}"]`)?.classList.add('selected');
+  renderMainPanel();
+  renderRosterPanel();
+}
+
 function renderTopbar() {
   const total = state.photos.length;
   const tagged = state.photos.filter(p => p.tags.length > 0).length;
@@ -619,9 +667,10 @@ function renderThumbs() {
     if (state.checkedIds.has(photo.id)) div.classList.add('checked');
 
     const img = document.createElement('img');
-    img.src = photo.url;
+    img.src = photo.thumbUrl || photo.url;
     img.alt = photo.name;
     div.appendChild(img);
+    if (!photo.thumbUrl) ensureThumbUrl(photo);
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -644,9 +693,11 @@ function renderThumbs() {
     }
 
     div.addEventListener('click', () => {
+      const hadChecked = state.checkedIds.size > 0;
       selectPhoto(photo.id);
       state.checkedIds.clear();
-      render();
+      if (hadChecked) render(); // checked-state touches multiple thumbs; full rebuild is simplest here
+      else renderSelection();
     });
 
     el.thumbList.appendChild(div);
@@ -658,8 +709,9 @@ function renderMainPanel() {
   el.tagBadges.innerHTML = '';
   if (!photo) return;
 
-  el.mainPhoto.src = photo.url;
+  el.mainPhoto.src = photo.previewUrl || photo.thumbUrl || photo.url;
   el.mainPhoto.alt = photo.name;
+  if (!photo.previewUrl) ensureMainPreview(photo);
 
   el.formatNotice.classList.toggle('hidden', photo.isJpeg);
 
@@ -672,6 +724,16 @@ function renderMainPanel() {
     : idx === state.photos.length - 1;
   el.btnPrev.disabled = atStart;
   el.btnNext.disabled = atEnd;
+
+  // Prefetch neighbors' previews while the user is looking at this photo,
+  // so by the time they click Next/Prev the sharp preview is likely already
+  // built — without this, every switch would show the blurry thumbUrl for
+  // as long as ensureMainPreview takes to run, even though there was idle
+  // time beforehand where it could have already finished.
+  if (state.checkedIds.size === 0) {
+    ensureMainPreview(state.photos[idx + 1]);
+    ensureMainPreview(state.photos[idx - 1]);
+  }
 
   if (photo.tags.length === 0) {
     const span = document.createElement('span');
@@ -690,6 +752,68 @@ function renderMainPanel() {
       el.tagBadges.appendChild(span);
     }
   }
+}
+
+// Runs thumbnail-generation tasks with limited concurrency. renderThumbs()
+// requests one for every photo missing a thumbUrl the moment the grid first
+// appears, which for a large folder means hundreds of requests at once —
+// running them all concurrently would have them all fighting over the same
+// decode/encode resources instead of finishing progressively.
+const THUMB_CONCURRENCY = 4;
+let thumbActive = 0;
+const thumbPending = [];
+
+function pumpThumbQueue() {
+  while (thumbActive < THUMB_CONCURRENCY && thumbPending.length > 0) {
+    const task = thumbPending.shift();
+    thumbActive++;
+    task().finally(() => { thumbActive--; pumpThumbQueue(); });
+  }
+}
+
+// Builds (once, cached on the photo) a downscaled thumbnail in the
+// background, then swaps it into the visible <img> if that thumbnail is
+// still on screen. Not done eagerly at load time — see loadFolder — so
+// this runs lazily, the first time each photo is actually rendered into
+// the thumbnail strip.
+function ensureThumbUrl(photo) {
+  if (photo.thumbUrl || photo._thumbPromise) return photo._thumbPromise;
+  photo._thumbPromise = new Promise(resolve => {
+    thumbPending.push(async () => {
+      try {
+        const file = await photo.fileHandle.getFile();
+        photo.thumbUrl = await createScaledObjectUrl(file, { resizeHeight: THUMB_HEIGHT });
+        const img = el.thumbList.querySelector(`[data-id="${photo.id}"] img`);
+        if (img) img.src = photo.thumbUrl;
+      } catch (err) {
+        console.warn('Failed to build thumbnail for', photo.name, err);
+      } finally {
+        resolve();
+      }
+    });
+    pumpThumbQueue();
+  });
+  return photo._thumbPromise;
+}
+
+// Builds (once, cached on the photo) a downscaled preview for the main
+// viewer, so switching photos doesn't require decoding the full-resolution
+// original — that's what made switching slow on large source files. Callers
+// see the (likely still-loading) thumbUrl immediately and this swaps in the
+// sharper preview once it's ready, but only if the user hasn't since
+// switched to a different photo.
+function ensureMainPreview(photo) {
+  if (!photo || photo.previewUrl || photo._previewPromise) return photo?._previewPromise;
+  photo._previewPromise = (async () => {
+    try {
+      const file = await photo.fileHandle.getFile();
+      photo.previewUrl = await createScaledObjectUrl(file, { resizeWidth: MAIN_PREVIEW_WIDTH });
+      if (selectedPhoto()?.id === photo.id) el.mainPhoto.src = photo.previewUrl;
+    } catch (err) {
+      console.warn('Failed to build preview for', photo.name, err);
+    }
+  })();
+  return photo._previewPromise;
 }
 
 function renderRosterSelects() {
@@ -766,7 +890,7 @@ function goPrev() {
     if (firstIdx > 0) { selectPhoto(photos[firstIdx - 1].id); state.checkedIds.clear(); render(); }
   } else {
     const idx = photos.findIndex(p => p.id === state.selectedPhotoId);
-    if (idx > 0) { selectPhoto(photos[idx - 1].id); render(); }
+    if (idx > 0) { selectPhoto(photos[idx - 1].id); renderSelection(); }
   }
 }
 
@@ -777,7 +901,7 @@ function goNext() {
     if (lastIdx < photos.length - 1) { selectPhoto(photos[lastIdx + 1].id); state.checkedIds.clear(); render(); }
   } else {
     const idx = photos.findIndex(p => p.id === state.selectedPhotoId);
-    if (idx < photos.length - 1) { selectPhoto(photos[idx + 1].id); render(); }
+    if (idx < photos.length - 1) { selectPhoto(photos[idx + 1].id); renderSelection(); }
   }
 }
 
@@ -2280,8 +2404,19 @@ el.btnRenameApplyConfirm.addEventListener('click', async () => {
 });
 
 // --- Folder loading ---
+// Loading a large folder has two costs: listing/opening each file (fast,
+// real I/O that yields to the browser) and decoding each JPEG's metadata
+// through exiv2-wasm (slow, synchronous CPU work — it's a single wasm
+// instance, so this can't be parallelized across files). Splitting into two
+// passes lets thumbnails appear as soon as files are listed, well before
+// the slower tag decoding finishes, instead of blocking on a fully-tagged
+// photo before rendering anything.
 async function loadFolder(dirHandle) {
-  for (const photo of state.photos) URL.revokeObjectURL(photo.url);
+  for (const photo of state.photos) {
+    URL.revokeObjectURL(photo.url);
+    if (photo.thumbUrl && photo.thumbUrl !== photo.url) URL.revokeObjectURL(photo.thumbUrl);
+    if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+  }
   state.photos = [];
   state.selectedPhotoId = null;
   state.checkedIds.clear();
@@ -2293,33 +2428,95 @@ async function loadFolder(dirHandle) {
   }
   entries.sort((a, b) => a.name.localeCompare(b.name));
 
-  const rNames = rosterNameSet();
-  for (const fileHandle of entries) {
-    const file = await fileHandle.getFile();
-    const tags = await readTagsFromFile(file);
-    state.photos.push({
-      id: crypto.randomUUID(),
-      name: file.name,
-      fileHandle,
-      url: URL.createObjectURL(file),
-      isJpeg: isJpegFile(file),
-      tags,
+  if (entries.length === 0) {
+    el.emptyState.classList.remove('hidden');
+    el.emptyState.textContent = 'No supported image files (jpg, png, gif, webp, bmp, tiff) were found in that folder.';
+    el.workspace.classList.add('hidden');
+    render();
+    return;
+  }
+
+  // One continuous 0-100% bar across both passes below (listing = first
+  // half, tag-reading = second half) rather than resetting it back to 0%
+  // partway through — a reset made it look like the load had finished and
+  // then started over from scratch, even though the modal never actually
+  // closed in between.
+  const totalSteps = entries.length * 2;
+  function setLoadProgress(step, label) {
+    el.folderLoadProgressFill.style.width = `${Math.round((step / totalSteps) * 100)}%`;
+    el.folderLoadProgressText.textContent = label;
+  }
+  setLoadProgress(0, `Listing 0 / ${entries.length}`);
+  el.folderLoadModal.classList.remove('hidden');
+
+  try {
+    // Pass 1: list every photo so the grid fills in right away; tags start
+    // empty and are attached in pass 2. Thumbnails are *not* generated
+    // here — downscaling every photo up front measured at roughly 1s each
+    // (dominated by JPEG re-encode, not decode), which would turn opening
+    // a large folder into a multi-minute wait. They're built lazily
+    // instead, in the background, the first time each one is actually
+    // displayed — see ensureThumbUrl.
+    const files = [];
+    for (const fileHandle of entries) {
+      const file = await fileHandle.getFile();
+      files.push(file);
+      state.photos.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        fileHandle,
+        url: URL.createObjectURL(file),
+        thumbUrl: null,
+        previewUrl: null,
+        isJpeg: isJpegFile(file),
+        tags: [],
+        personTags: [],
+        personInImageLocked: false,
+      });
+      const done = files.length;
+      setLoadProgress(done, `Listing ${done} / ${entries.length}`);
+    }
+
+    state.selectedPhotoId = state.photos[0].id;
+    el.emptyState.classList.add('hidden');
+    el.workspace.classList.remove('hidden');
+    render();
+
+    // Pass 2: decode real tags in the background, re-rendering periodically
+    // rather than after every photo — a full render() is O(n), so doing it
+    // every photo would turn a large folder's load into O(n^2) DOM work.
+    const rNames = rosterNameSet();
+    const renderEvery = Math.max(1, Math.ceil(state.photos.length / 50));
+    for (let i = 0; i < state.photos.length; i++) {
+      const photo = state.photos[i];
+      const tags = await readTagsFromFile(files[i]);
+      photo.tags = tags;
       // Which tags count as "from the roster" for PersonInImage syncing
       // (see addTag). We don't track this across sessions, so on load we
       // approximate it by matching existing tags against the active
       // roster's current member names.
-      personTags: tags.filter(t => rNames.has(t.toLowerCase())),
-      personInImageLocked: false,
-    });
-  }
+      photo.personTags = tags.filter(t => rNames.has(t.toLowerCase()));
+      const done = i + 1;
+      setLoadProgress(entries.length + done, `Reading tags ${done} / ${state.photos.length}`);
+      if (done % renderEvery === 0 || done === state.photos.length) render();
+    }
 
-  if (state.photos.length > 0) state.selectedPhotoId = state.photos[0].id;
-  el.emptyState.classList.toggle('hidden', state.photos.length > 0);
-  el.emptyState.textContent = state.photos.length === 0
-    ? 'No supported image files (jpg, png, gif, webp, bmp, tiff) were found in that folder.'
-    : '';
-  el.workspace.classList.toggle('hidden', state.photos.length === 0);
-  render();
+    // Pass 2's tight synchronous exiv2 loop above leaves little room for
+    // the background thumbnail/preview generation (see ensureThumbUrl /
+    // ensureMainPreview) to actually run — their decode/encode work happens
+    // off-thread, but resolving each one still needs a turn of the main
+    // thread's event loop, which pass 2 was mostly monopolizing. Without
+    // this, the first photo's preview (and its prefetched neighbor) often
+    // hadn't finished by the time the modal closes, so the very next 'Next'
+    // click would hit that still-in-flight work and look like a second,
+    // shorter load. Explicitly waiting for just the first two here gives
+    // them a chance to finish while the modal is still up.
+    el.folderLoadProgressText.textContent = 'Preparing preview…';
+    await ensureMainPreview(state.photos[0]);
+    await ensureMainPreview(state.photos[1]);
+  } finally {
+    el.folderLoadModal.classList.add('hidden');
+  }
 }
 
 // --- Recent folders ---
