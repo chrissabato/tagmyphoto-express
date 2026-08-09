@@ -104,6 +104,12 @@
       <button id="btn-roster-delete" class="link-btn">Delete</button>
       <button id="btn-roster-clear" class="link-btn link-btn-danger">Clear</button>
     </div>
+    <div class="roster-io">
+      <button id="btn-roster-export" class="link-btn">Export all rosters…</button>
+      <button id="btn-roster-import" class="link-btn">Import rosters…</button>
+      <input id="roster-import-file" type="file" accept="application/json,.json" class="hidden">
+      <span id="roster-io-status" class="csv-import-status"></span>
+    </div>
     <div id="roster-name-edit-section" class="roster-name-edit-section hidden">
       <input id="roster-name-edit-input" type="text" placeholder="Roster name">
       <button id="btn-roster-name-edit-save" class="btn btn-primary">Save</button>

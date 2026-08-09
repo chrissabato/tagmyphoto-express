@@ -220,6 +220,10 @@ const el = {
   btnRosterRename: $('#btn-roster-rename'),
   btnRosterDelete: $('#btn-roster-delete'),
   btnRosterClear: $('#btn-roster-clear'),
+  btnRosterExport: $('#btn-roster-export'),
+  btnRosterImport: $('#btn-roster-import'),
+  rosterImportFile: $('#roster-import-file'),
+  rosterIoStatus: $('#roster-io-status'),
   rosterNameEditSection: $('#roster-name-edit-section'),
   rosterNameEditInput: $('#roster-name-edit-input'),
   btnRosterNameEditSave: $('#btn-roster-name-edit-save'),
@@ -671,6 +675,7 @@ el.btnManageRoster.addEventListener('click', () => {
   el.csvImportSection.classList.add('hidden');
   el.csvImportText.value = '';
   el.csvImportStatus.textContent = '';
+  el.rosterIoStatus.textContent = '';
   el.rosterModal.classList.remove('hidden');
 });
 el.btnRosterClose.addEventListener('click', () => el.rosterModal.classList.add('hidden'));
@@ -834,6 +839,88 @@ el.btnCsvImport.addEventListener('click', () => {
   el.csvImportText.value = '';
   el.csvImportStatus.textContent =
     `Added ${added}${skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}.`;
+});
+
+// --- Roster export / import (JSON, all rosters) ---
+el.btnRosterExport.addEventListener('click', () => {
+  const payload = {
+    app: 'tagmyphoto-express',
+    type: 'rosters',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    rosters: state.rosters.map(r => ({
+      name: r.name,
+      members: r.members.map(m => ({ name: m.name, number: m.number || '' })),
+    })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rosters-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  el.rosterIoStatus.textContent = `Exported ${state.rosters.length} roster(s).`;
+});
+
+el.btnRosterImport.addEventListener('click', () => el.rosterImportFile.click());
+
+el.rosterImportFile.addEventListener('change', async () => {
+  const file = el.rosterImportFile.files[0];
+  el.rosterImportFile.value = '';
+  if (!file) return;
+
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    el.rosterIoStatus.textContent = 'Invalid JSON file.';
+    return;
+  }
+  const importedRosters = Array.isArray(data?.rosters) ? data.rosters : null;
+  if (!importedRosters) {
+    el.rosterIoStatus.textContent = "File doesn't look like a roster export.";
+    return;
+  }
+
+  let rostersAdded = 0, rostersMerged = 0, membersAdded = 0;
+  for (const r of importedRosters) {
+    const name = String(r?.name || '').trim();
+    if (!name) continue;
+    let roster = state.rosters.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (roster) {
+      rostersMerged++;
+    } else {
+      roster = { id: crypto.randomUUID(), name, members: [] };
+      state.rosters.push(roster);
+      rostersAdded++;
+    }
+    const seen = new Set(roster.members.map(m => m.name.toLowerCase()));
+    const members = Array.isArray(r?.members) ? r.members : [];
+    for (const m of members) {
+      const mName = String(m?.name || '').trim();
+      if (!mName) continue;
+      const key = mName.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      roster.members.push({ id: crypto.randomUUID(), name: mName, number: String(m?.number || '').trim() });
+      membersAdded++;
+    }
+  }
+
+  if (!rostersAdded && !rostersMerged) {
+    el.rosterIoStatus.textContent = 'No rosters found in file.';
+    return;
+  }
+
+  persistRosters();
+  renderRosterSelects();
+  renderRosterModalList();
+  renderRosterPanel();
+  el.rosterIoStatus.textContent =
+    `Imported ${rostersAdded} new roster${rostersAdded === 1 ? '' : 's'}` +
+    `${rostersMerged ? `, merged into ${rostersMerged} existing` : ''}` +
+    `, added ${membersAdded} member${membersAdded === 1 ? '' : 's'}.`;
 });
 
 // --- Folder loading ---

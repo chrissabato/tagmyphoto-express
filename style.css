@@ -371,6 +371,7 @@ body {
 .roster-modal { max-width: 460px; text-align: left; }
 .roster-switcher { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .roster-switcher .roster-select { flex: 1; min-width: 0; margin-bottom: 0; }
+.roster-io { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
 .roster-name-edit-section { display: flex; gap: 8px; margin-bottom: 16px; }
 .roster-name-edit-section input {
   flex: 1;
