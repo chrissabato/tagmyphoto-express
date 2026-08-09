@@ -116,6 +116,114 @@ async function removeTagFromFile(photo, remainingTags, removedTag) {
   return !verifyTags.some(t => t.toLowerCase() === removedTag.toLowerCase());
 }
 
+// --- Metadata Templates: field mapping, interpolation, writing ---
+// legacy = classic IPTC IIM key (Iptc.Application2.*), xmp = XMP equivalent.
+// mode: 'plain' (single writeString, replaces cleanly on its own — confirmed
+// against this app's custom exiv2-wasm build), 'list' (comma-split, one
+// writeString per value on the XMP side — same pattern as today's
+// Keywords/dc:subject — needs removeKey first or values accumulate across
+// re-applies), 'langAlt' (plain write; Exiv2 treats an unqualified string as
+// x-default and reads it back prefixed with `lang="x-default" `, confirmed
+// via spike test). Struct sub-properties (CreatorContactInfo/*) behave
+// identically to 'plain' — also confirmed via spike test — so they don't
+// need their own mode.
+const TEMPLATE_FIELD_MAP = [
+  { group: 'Content', key: 'Description', legacyKey: 'Iptc.Application2.Caption', xmpKey: 'Xmp.dc.description', mode: 'langAlt' },
+  { group: 'Content', key: 'Headline', legacyKey: 'Iptc.Application2.Headline', xmpKey: 'Xmp.photoshop.Headline', mode: 'plain' },
+  { group: 'Content', key: 'Keywords', legacyKey: 'Iptc.Application2.Keywords', xmpKey: 'Xmp.dc.subject', mode: 'list' },
+  { group: 'Content', key: 'PersonInImage', legacyKey: null, xmpKey: 'Xmp.iptcExt.PersonInImage', mode: 'list' },
+  { group: 'Content', key: 'Scene', legacyKey: null, xmpKey: 'Xmp.iptcExt.Scene', mode: 'list' },
+  { group: 'Content', key: 'Event', legacyKey: null, xmpKey: 'Xmp.iptcExt.Event', mode: 'langAlt' },
+  { group: 'Content', key: 'OrganisationInImageName', legacyKey: null, xmpKey: 'Xmp.iptcExt.OrganisationInImageName', mode: 'list' },
+  { group: 'Content', key: 'OrganisationInImageCode', legacyKey: null, xmpKey: 'Xmp.iptcExt.OrganisationInImageCode', mode: 'list' },
+  { group: 'Content', key: 'SpecialInstructions', legacyKey: 'Iptc.Application2.SpecialInstructions', xmpKey: 'Xmp.photoshop.Instructions', mode: 'plain' },
+  { group: 'Creator', key: 'Creator', legacyKey: 'Iptc.Application2.Byline', xmpKey: 'Xmp.dc.creator', mode: 'list' },
+  { group: 'Creator', key: 'CreatorJobTitle', legacyKey: 'Iptc.Application2.BylineTitle', xmpKey: 'Xmp.photoshop.AuthorsPosition', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorAddress', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiAdrExtadr', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorCity', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiAdrCity', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorPostalCode', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiAdrPcode', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorCountry', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiAdrCtry', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorWorkEmail', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiEmailWork', mode: 'plain' },
+  { group: 'Creator', key: 'CreatorWorkURL', legacyKey: null, xmpKey: 'Xmp.iptc.CreatorContactInfo/Iptc4xmpCore:CiUrlWork', mode: 'plain' },
+  { group: 'Rights', key: 'CopyrightNotice', legacyKey: 'Iptc.Application2.Copyright', xmpKey: 'Xmp.dc.rights', mode: 'langAlt' },
+  { group: 'Rights', key: 'Credit', legacyKey: 'Iptc.Application2.Credit', xmpKey: 'Xmp.photoshop.Credit', mode: 'plain' },
+  { group: 'Rights', key: 'Source', legacyKey: 'Iptc.Application2.Source', xmpKey: 'Xmp.photoshop.Source', mode: 'plain' },
+  { group: 'Rights', key: 'WebStatement', legacyKey: null, xmpKey: 'Xmp.xmpRights.WebStatement', mode: 'plain' },
+  { group: 'Rights', key: 'UsageTerms', legacyKey: null, xmpKey: 'Xmp.xmpRights.UsageTerms', mode: 'langAlt' },
+  { group: 'Location', key: 'City', legacyKey: 'Iptc.Application2.City', xmpKey: 'Xmp.photoshop.City', mode: 'plain' },
+  { group: 'Location', key: 'Sub-location', legacyKey: 'Iptc.Application2.SubLocation', xmpKey: 'Xmp.photoshop.Location', mode: 'plain' },
+  { group: 'Location', key: 'Province-State', legacyKey: 'Iptc.Application2.ProvinceState', xmpKey: 'Xmp.photoshop.State', mode: 'plain' },
+  { group: 'Location', key: 'Country-PrimaryLocationName', legacyKey: 'Iptc.Application2.CountryName', xmpKey: 'Xmp.photoshop.Country', mode: 'plain' },
+  { group: 'Location', key: 'Country-PrimaryLocationCode', legacyKey: 'Iptc.Application2.CountryCode', xmpKey: 'Xmp.iptc.CountryCode', mode: 'plain' },
+];
+
+const TEMPLATE_FIELD_GROUPS = ['Content', 'Creator', 'Rights', 'Location'];
+
+const BUILTIN_VARS = [
+  { key: 'photographer', label: 'Photographer name' },
+  { key: 'org_name', label: 'Organisation name' },
+  { key: 'iptcday', label: 'Day (01–31)' }, { key: 'iptcday_nopad', label: 'Day (1–31)' },
+  { key: 'iptcmonth', label: 'Month (01–12)' }, { key: 'iptcmonthname', label: 'Month name' }, { key: 'iptcmonthname_short', label: 'Month short' },
+  { key: 'iptcyear4', label: 'Year (2025)' }, { key: 'iptcyear2', label: 'Year short (25)' },
+];
+// 'persons' is a 10th builtin, computed per-photo, never a form field.
+const BUILTIN_VAR_KEYS = new Set([...BUILTIN_VARS.map(v => v.key), 'persons']);
+
+function interpolateTemplate(template, vars) {
+  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+}
+
+function detectFillIns(fields) {
+  const all = Object.values(fields).join(' ');
+  const found = [...all.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+  return found.filter((v, i, a) => !BUILTIN_VAR_KEYS.has(v) && a.indexOf(v) === i);
+}
+
+// Parses 'YYYY-MM-DD' as local y/m/d — new Date(dateStr) parses as UTC and
+// can shift the displayed day near timezone boundaries.
+function computeDateVars(dateStr) {
+  if (!dateStr) return { iptcday: '', iptcday_nopad: '', iptcmonth: '', iptcmonthname: '', iptcmonthname_short: '', iptcyear4: '', iptcyear2: '' };
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return {
+    iptcday: String(date.getDate()).padStart(2, '0'),
+    iptcday_nopad: String(date.getDate()),
+    iptcmonth: String(date.getMonth() + 1).padStart(2, '0'),
+    iptcmonthname: MONTHS[date.getMonth()],
+    iptcmonthname_short: MONTHS[date.getMonth()].slice(0, 3),
+    iptcyear4: String(date.getFullYear()),
+    iptcyear2: String(date.getFullYear()).slice(-2),
+  };
+}
+
+// Writes one interpolated field value using its Exiv2 key mapping. Modes
+// confirmed by spike-testing against this app's custom exiv2-wasm build:
+// single-value fields (plain/langAlt/struct sub-properties alike) cleanly
+// replace on writeString alone, but a removeKey first keeps behavior
+// consistent and handles the "template value cleared to empty on a
+// re-apply" case. List fields accumulate across writes and require
+// removeKey first, same as the existing Keywords/dc:subject writer.
+function writeTemplateField(exiv2, buf, config, value) {
+  if (config.mode === 'list') {
+    const values = splitKeywords(value);
+    if (config.legacyKey) buf = exiv2.removeKey(buf, config.legacyKey) ?? buf;
+    if (config.xmpKey) buf = exiv2.removeKey(buf, config.xmpKey) ?? buf;
+    if (values.length) {
+      if (config.legacyKey) buf = exiv2.writeString(buf, config.legacyKey, values.join('; '));
+      if (config.xmpKey) for (const v of values) buf = exiv2.writeString(buf, config.xmpKey, v);
+    }
+  } else { // plain / langAlt
+    if (config.legacyKey) buf = exiv2.removeKey(buf, config.legacyKey) ?? buf;
+    if (config.xmpKey) buf = exiv2.removeKey(buf, config.xmpKey) ?? buf;
+    if (value) {
+      if (config.legacyKey) buf = exiv2.writeString(buf, config.legacyKey, value);
+      if (config.xmpKey) buf = exiv2.writeString(buf, config.xmpKey, value);
+    }
+  }
+  return buf;
+}
+
 // --- Small IndexedDB helper for non-photo state (folder handle, roster) ---
 const DB_NAME = 'photo-tagger';
 const STORE = 'kv';
@@ -158,6 +266,8 @@ const state = {
   filterUntagged: false,
   rosters: [],           // { id, name, members: [{ id, name, number }] }
   activeRosterId: null,
+  metadataTemplates: [],  // { id, name, fields: Record<string,string> }
+  activeTemplateId: null,
 };
 
 function suggestedNames() {
@@ -180,6 +290,10 @@ function activeRosterMembers() {
 
 function rosterNameSet() {
   return new Set(activeRosterMembers().map(m => m.name.toLowerCase()));
+}
+
+function activeTemplate() {
+  return state.metadataTemplates.find(t => t.id === state.activeTemplateId) || state.metadataTemplates[0] || null;
 }
 
 // --- DOM refs ---
@@ -241,6 +355,44 @@ const el = {
   lightbox: $('#lightbox'),
   lightboxImg: $('#lightbox-img'),
   btnLightboxClose: $('#btn-lightbox-close'),
+
+  // Metadata Templates
+  btnManageTemplates: $('#btn-manage-templates'),
+  btnApplyTemplate: $('#btn-apply-template'),
+  templateModal: $('#template-modal'),
+  templateSelectModal: $('#template-select-modal'),
+  btnTemplateNew: $('#btn-template-new'),
+  btnTemplateRename: $('#btn-template-rename'),
+  btnTemplateDuplicate: $('#btn-template-duplicate'),
+  btnTemplateDelete: $('#btn-template-delete'),
+  btnTemplateExport: $('#btn-template-export'),
+  btnTemplateImport: $('#btn-template-import'),
+  templateImportFile: $('#template-import-file'),
+  templateIoStatus: $('#template-io-status'),
+  templateNameEditSection: $('#template-name-edit-section'),
+  templateNameEditInput: $('#template-name-edit-input'),
+  btnTemplateNameEditSave: $('#btn-template-name-edit-save'),
+  btnTemplateNameEditCancel: $('#btn-template-name-edit-cancel'),
+  templateVarsRow: $('#template-vars-row'),
+  templateFields: $('#template-fields'),
+  templateCustomVarsSection: $('#template-custom-vars-section'),
+  templateCustomVars: $('#template-custom-vars'),
+  templatePreview: $('#template-preview'),
+  btnTemplateClose: $('#btn-template-close'),
+
+  templateApplyModal: $('#template-apply-modal'),
+  templateApplySelect: $('#template-apply-select'),
+  templateApplyDate: $('#template-apply-date'),
+  templateApplyPhotographer: $('#template-apply-photographer'),
+  templateApplyOrg: $('#template-apply-org'),
+  templateApplyCustomVarsSection: $('#template-apply-custom-vars-section'),
+  templateApplyCustomVars: $('#template-apply-custom-vars'),
+  btnTemplateApplyConfirm: $('#btn-template-apply-confirm'),
+  btnTemplateApplyCancel: $('#btn-template-apply-cancel'),
+
+  applyTemplateModal: $('#apply-template-modal'),
+  applyTemplateProgressText: $('#apply-template-progress-text'),
+  applyTemplateProgressFill: $('#apply-template-progress-fill'),
 };
 
 // --- Rendering ---
@@ -923,6 +1075,451 @@ el.rosterImportFile.addEventListener('change', async () => {
     `, added ${membersAdded} member${membersAdded === 1 ? '' : 's'}.`;
 });
 
+// --- Metadata Templates ---
+function persistTemplates() {
+  return Promise.all([
+    kvSet('metadataTemplates', state.metadataTemplates),
+    kvSet('activeTemplateId', state.activeTemplateId),
+  ]);
+}
+
+// Populated when the Apply-Template form opens; discarded when it closes.
+// Deliberately never touches IndexedDB — fill-in values (photographer name,
+// event date, custom vars) are per-session only, per the user's decision
+// that these shouldn't persist across sessions.
+let templateApplyDraft = null; // { templateId, eventDate, photographer, orgName, customVars: {} }
+
+// Interpolates one template's fields against the given fill-ins (plus
+// per-photo 'persons') and writes them into the photo's file. Keywords
+// routes through writeTagsToFile so template-driven and manual tag edits
+// never diverge; the remaining fields go through one additional
+// read-modify-write pass. Keywords/PersonInImage default to the photo's
+// current tag list when the template doesn't define them itself, matching
+// the original app's preset behavior.
+async function applyTemplateToPhoto(photo, template, fillIns) {
+  const vars = { ...fillIns, persons: photo.tags.join(', ') };
+  const values = {};
+  for (const [key, raw] of Object.entries(template.fields)) {
+    if (raw && raw.trim()) values[key] = interpolateTemplate(raw, vars);
+  }
+  if (values.Keywords === undefined) values.Keywords = photo.tags.join(', ');
+  if (values.PersonInImage === undefined) values.PersonInImage = photo.tags.join(', ');
+
+  const keywords = [...new Set(splitKeywords(values.Keywords))];
+  await writeTagsToFile(photo, keywords);
+  photo.tags = keywords;
+
+  const exiv2 = await getExiv2();
+  let buf = new Uint8Array(await (await photo.fileHandle.getFile()).arrayBuffer());
+  let changed = false;
+  for (const config of TEMPLATE_FIELD_MAP) {
+    if (config.key === 'Keywords') continue;
+    const value = values[config.key];
+    if (value === undefined) continue;
+    try {
+      buf = writeTemplateField(exiv2, buf, config, value);
+      changed = true;
+    } catch (err) {
+      console.warn(`Skipping ${config.key} for ${photo.name}:`, err);
+    }
+  }
+  if (changed) {
+    const writable = await photo.fileHandle.createWritable();
+    await writable.write(buf);
+    await writable.close();
+  }
+}
+
+// Sequential, not parallel — mirrors clearAllKeywords: accurate progress and
+// avoids many concurrent open file writes. No close/cancel control while
+// running, for the same reason clearAllKeywords has none.
+async function applyTemplateToAllPhotos(template, fillIns) {
+  const jpegPhotos = state.photos.filter(p => p.isJpeg && p.fileHandle);
+  if (!jpegPhotos.length) { alert('No JPEG photos in this folder to apply the template to.'); return; }
+  if (!confirm(`Apply template "${template.name}" to ${jpegPhotos.length} photo(s)? This can't be undone.`)) return;
+
+  el.applyTemplateProgressFill.style.width = '0%';
+  el.applyTemplateProgressText.textContent = `0 / ${jpegPhotos.length}`;
+  el.applyTemplateModal.classList.remove('hidden');
+  let done = 0;
+  const failures = [];
+  for (const photo of jpegPhotos) {
+    try { await applyTemplateToPhoto(photo, template, fillIns); }
+    catch (err) { console.error('Failed to apply template to', photo.name, err); failures.push(photo.name); }
+    done++;
+    el.applyTemplateProgressFill.style.width = `${Math.round((done / jpegPhotos.length) * 100)}%`;
+    el.applyTemplateProgressText.textContent = `${done} / ${jpegPhotos.length}`;
+  }
+  el.applyTemplateModal.classList.add('hidden');
+  render();
+  if (failures.length) alert(`Applied to ${jpegPhotos.length - failures.length}, failed on ${failures.length}: ${failures.join(', ')}`);
+}
+
+function renderApplyTemplateButtonState() {
+  el.btnApplyTemplate.disabled = state.metadataTemplates.length === 0;
+  el.btnApplyTemplate.title = state.metadataTemplates.length === 0
+    ? 'Create a template first (Manage → + New)'
+    : '';
+}
+
+function renderTemplateSelects() {
+  for (const sel of [el.templateSelectModal, el.templateApplySelect]) {
+    sel.innerHTML = '';
+    for (const template of state.metadataTemplates) {
+      const opt = document.createElement('option');
+      opt.value = template.id;
+      opt.textContent = template.name;
+      sel.appendChild(opt);
+    }
+  }
+  el.templateSelectModal.value = state.activeTemplateId || '';
+  if (templateApplyDraft) el.templateApplySelect.value = templateApplyDraft.templateId || '';
+}
+
+function setActiveTemplate(id) {
+  state.activeTemplateId = id;
+  persistTemplates();
+  renderTemplateSelects();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+}
+
+function templateFieldId(key) {
+  return `template-field-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+}
+
+// Sample values used only to preview interpolation inside the editor —
+// never written anywhere.
+function buildPreviewVars(template) {
+  const vars = {
+    photographer: 'Jane Photographer',
+    org_name: 'Sample Org',
+    persons: 'Alex Kim, Sam Lee',
+    ...computeDateVars(new Date().toISOString().slice(0, 10)),
+  };
+  for (const key of detectFillIns(template.fields)) vars[key] = `[${key}]`;
+  return vars;
+}
+
+// The variable-chip row inserts at the cursor of whichever field textarea
+// was last focused, so it's tracked as it changes rather than re-derived.
+let lastFocusedTemplateField = null;
+
+function renderTemplateVarsRow() {
+  el.templateVarsRow.innerHTML = '';
+  const chips = [...BUILTIN_VARS, { key: 'persons', label: "This photo's tagged names" }];
+  for (const v of chips) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = `{${v.key}}`;
+    chip.title = v.label;
+    chip.addEventListener('click', () => insertVarIntoField(v.key));
+    el.templateVarsRow.appendChild(chip);
+  }
+}
+
+function insertVarIntoField(key) {
+  const target = lastFocusedTemplateField;
+  if (!target) return;
+  const insertion = `{${key}}`;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  target.value = target.value.slice(0, start) + insertion + target.value.slice(end);
+  target.selectionStart = target.selectionEnd = start + insertion.length;
+  target.dispatchEvent(new Event('input'));
+  target.focus();
+  persistTemplates();
+}
+
+// Rebuilds the field textareas from scratch — only called when the active
+// template or its identity changes (opening the modal, switching/creating/
+// deleting a template), never on every keystroke, so typing doesn't fight
+// cursor position against a re-render.
+function renderTemplateFieldsStructure() {
+  const template = activeTemplate();
+  el.templateFields.innerHTML = '';
+  if (!template) return;
+  for (const group of TEMPLATE_FIELD_GROUPS) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'template-field-group';
+    const legend = document.createElement('legend');
+    legend.textContent = group;
+    fieldset.appendChild(legend);
+    for (const config of TEMPLATE_FIELD_MAP.filter(f => f.group === group)) {
+      const row = document.createElement('div');
+      row.className = 'template-field-row';
+      const label = document.createElement('label');
+      label.textContent = config.key;
+      label.htmlFor = templateFieldId(config.key);
+      const textarea = document.createElement('textarea');
+      textarea.id = templateFieldId(config.key);
+      textarea.rows = 1;
+      textarea.value = template.fields[config.key] || '';
+      textarea.addEventListener('focus', () => { lastFocusedTemplateField = textarea; });
+      textarea.addEventListener('input', () => {
+        template.fields[config.key] = textarea.value;
+        renderTemplatePreview();
+        renderTemplateCustomVarsSection();
+      });
+      textarea.addEventListener('change', () => persistTemplates());
+      row.appendChild(label);
+      row.appendChild(textarea);
+      fieldset.appendChild(row);
+    }
+    el.templateFields.appendChild(fieldset);
+  }
+}
+
+function renderTemplateCustomVarsSection() {
+  const template = activeTemplate();
+  const vars = template ? detectFillIns(template.fields) : [];
+  el.templateCustomVarsSection.classList.toggle('hidden', vars.length === 0);
+  el.templateCustomVars.innerHTML = '';
+  for (const v of vars) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = `{${v}}`;
+    el.templateCustomVars.appendChild(chip);
+  }
+}
+
+function renderTemplatePreview() {
+  const template = activeTemplate();
+  el.templatePreview.innerHTML = '';
+  if (!template) return;
+  const vars = buildPreviewVars(template);
+  for (const config of TEMPLATE_FIELD_MAP) {
+    const raw = template.fields[config.key];
+    if (!raw || !raw.trim()) continue;
+    const row = document.createElement('div');
+    row.className = 'template-preview-row';
+    const label = document.createElement('span');
+    label.className = 'template-preview-label';
+    label.textContent = `${config.key}: `;
+    row.appendChild(label);
+    row.appendChild(document.createTextNode(interpolateTemplate(raw, vars)));
+    el.templatePreview.appendChild(row);
+  }
+  if (!el.templatePreview.children.length) {
+    el.templatePreview.innerHTML = '<span class="no-tags">No fields filled in yet.</span>';
+  }
+}
+
+el.btnManageTemplates.addEventListener('click', () => {
+  if (state.metadataTemplates.length === 0) {
+    const template = { id: crypto.randomUUID(), name: 'My Template', fields: {} };
+    state.metadataTemplates.push(template);
+    state.activeTemplateId = template.id;
+    persistTemplates();
+    renderApplyTemplateButtonState();
+  }
+  renderTemplateSelects();
+  renderTemplateVarsRow();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+  el.templateNameEditSection.classList.add('hidden');
+  el.templateIoStatus.textContent = '';
+  el.templateModal.classList.remove('hidden');
+});
+el.btnTemplateClose.addEventListener('click', () => el.templateModal.classList.add('hidden'));
+el.templateSelectModal.addEventListener('change', () => setActiveTemplate(el.templateSelectModal.value));
+
+let templateNameEditMode = 'new';
+
+function openTemplateNameEdit(mode) {
+  templateNameEditMode = mode;
+  el.templateNameEditInput.value = mode === 'rename' ? (activeTemplate()?.name || '') : '';
+  el.templateNameEditSection.classList.remove('hidden');
+  el.templateNameEditInput.focus();
+  el.templateNameEditInput.select();
+}
+
+el.btnTemplateNew.addEventListener('click', () => openTemplateNameEdit('new'));
+el.btnTemplateRename.addEventListener('click', () => openTemplateNameEdit('rename'));
+el.btnTemplateNameEditCancel.addEventListener('click', () => el.templateNameEditSection.classList.add('hidden'));
+
+el.btnTemplateNameEditSave.addEventListener('click', () => {
+  const name = el.templateNameEditInput.value.trim();
+  if (!name) return;
+  if (templateNameEditMode === 'new') {
+    const template = { id: crypto.randomUUID(), name, fields: {} };
+    state.metadataTemplates.push(template);
+    state.activeTemplateId = template.id;
+  } else {
+    const template = activeTemplate();
+    if (template) template.name = name;
+  }
+  persistTemplates();
+  el.templateNameEditSection.classList.add('hidden');
+  renderTemplateSelects();
+  renderTemplateVarsRow();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+  renderApplyTemplateButtonState();
+});
+
+el.templateNameEditInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); el.btnTemplateNameEditSave.click(); }
+  else if (e.key === 'Escape') el.templateNameEditSection.classList.add('hidden');
+});
+
+el.btnTemplateDuplicate.addEventListener('click', () => {
+  const template = activeTemplate();
+  if (!template) return;
+  const copy = { id: crypto.randomUUID(), name: `${template.name} copy`, fields: { ...template.fields } };
+  state.metadataTemplates.push(copy);
+  state.activeTemplateId = copy.id;
+  persistTemplates();
+  renderTemplateSelects();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+});
+
+el.btnTemplateDelete.addEventListener('click', () => {
+  const template = activeTemplate();
+  if (!template) return;
+  if (!confirm(`Delete template "${template.name}"? This can't be undone.`)) return;
+  state.metadataTemplates = state.metadataTemplates.filter(t => t.id !== template.id);
+  state.activeTemplateId = state.metadataTemplates[0]?.id || null;
+  persistTemplates();
+  renderTemplateSelects();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+  renderApplyTemplateButtonState();
+});
+
+// --- Template export / import (JSON, one template per file) ---
+el.btnTemplateExport.addEventListener('click', () => {
+  const template = activeTemplate();
+  if (!template) return;
+  const payload = { name: template.name, fields: template.fields };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const slug = template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  a.download = `${slug || 'template'}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  el.templateIoStatus.textContent = `Exported "${template.name}".`;
+});
+
+el.btnTemplateImport.addEventListener('click', () => el.templateImportFile.click());
+
+el.templateImportFile.addEventListener('change', async () => {
+  const file = el.templateImportFile.files[0];
+  el.templateImportFile.value = '';
+  if (!file) return;
+
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    el.templateIoStatus.textContent = 'Invalid JSON file.';
+    return;
+  }
+  const name = String(data?.name || '').trim();
+  if (!name || typeof data.fields !== 'object' || data.fields === null) {
+    el.templateIoStatus.textContent = "File doesn't look like a template export.";
+    return;
+  }
+
+  // Always creates a new template rather than merging by name — merging two
+  // full field-maps by name would silently overwrite one preset's values
+  // with another's, which is much more surprising than merging flat name
+  // lists the way roster import does.
+  const fields = {};
+  for (const config of TEMPLATE_FIELD_MAP) {
+    if (typeof data.fields[config.key] === 'string') fields[config.key] = data.fields[config.key];
+  }
+  const template = { id: crypto.randomUUID(), name, fields };
+  state.metadataTemplates.push(template);
+  state.activeTemplateId = template.id;
+  persistTemplates();
+  renderTemplateSelects();
+  renderTemplateVarsRow();
+  renderTemplateFieldsStructure();
+  renderTemplatePreview();
+  renderTemplateCustomVarsSection();
+  renderApplyTemplateButtonState();
+  el.templateIoStatus.textContent = `Imported "${name}" as a new template.`;
+});
+
+// --- Apply-Template flow ---
+el.btnApplyTemplate.addEventListener('click', () => {
+  if (state.metadataTemplates.length === 0) return;
+  if (!templateApplyDraft) {
+    templateApplyDraft = {
+      templateId: (activeTemplate() || state.metadataTemplates[0]).id,
+      eventDate: '',
+      photographer: '',
+      orgName: '',
+      customVars: {},
+    };
+  }
+  renderTemplateSelects();
+  renderTemplateApplyForm();
+  el.templateApplyModal.classList.remove('hidden');
+});
+
+el.btnTemplateApplyCancel.addEventListener('click', () => el.templateApplyModal.classList.add('hidden'));
+
+el.templateApplySelect.addEventListener('change', () => {
+  templateApplyDraft.templateId = el.templateApplySelect.value;
+  renderTemplateApplyForm();
+});
+
+function renderTemplateApplyForm() {
+  if (!templateApplyDraft) return;
+  el.templateApplySelect.value = templateApplyDraft.templateId;
+  el.templateApplyDate.value = templateApplyDraft.eventDate;
+  el.templateApplyPhotographer.value = templateApplyDraft.photographer;
+  el.templateApplyOrg.value = templateApplyDraft.orgName;
+
+  const template = state.metadataTemplates.find(t => t.id === templateApplyDraft.templateId);
+  const customKeys = template ? detectFillIns(template.fields) : [];
+  el.templateApplyCustomVarsSection.classList.toggle('hidden', customKeys.length === 0);
+  el.templateApplyCustomVars.innerHTML = '';
+  for (const key of customKeys) {
+    const row = document.createElement('div');
+    row.className = 'template-apply-row';
+    const label = document.createElement('label');
+    label.textContent = key;
+    label.htmlFor = `template-apply-var-${key}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `template-apply-var-${key}`;
+    input.value = templateApplyDraft.customVars[key] || '';
+    input.addEventListener('input', () => { templateApplyDraft.customVars[key] = input.value; });
+    row.appendChild(label);
+    row.appendChild(input);
+    el.templateApplyCustomVars.appendChild(row);
+  }
+}
+
+el.templateApplyDate.addEventListener('input', () => { templateApplyDraft.eventDate = el.templateApplyDate.value; });
+el.templateApplyPhotographer.addEventListener('input', () => { templateApplyDraft.photographer = el.templateApplyPhotographer.value; });
+el.templateApplyOrg.addEventListener('input', () => { templateApplyDraft.orgName = el.templateApplyOrg.value; });
+
+el.btnTemplateApplyConfirm.addEventListener('click', async () => {
+  const template = state.metadataTemplates.find(t => t.id === templateApplyDraft.templateId);
+  if (!template) return;
+  const fillIns = {
+    photographer: templateApplyDraft.photographer,
+    org_name: templateApplyDraft.orgName,
+    ...computeDateVars(templateApplyDraft.eventDate),
+    ...templateApplyDraft.customVars,
+  };
+  el.templateApplyModal.classList.add('hidden');
+  await applyTemplateToAllPhotos(template, fillIns);
+});
+
 // --- Folder loading ---
 async function loadFolder(dirHandle) {
   for (const photo of state.photos) URL.revokeObjectURL(photo.url);
@@ -1062,6 +1659,13 @@ async function init() {
     : state.rosters[0].id;
   await persistRosters();
 
+  const savedTemplates = await kvGet('metadataTemplates');
+  state.metadataTemplates = Array.isArray(savedTemplates) ? savedTemplates : [];
+  const savedActiveTemplateId = await kvGet('activeTemplateId');
+  state.activeTemplateId = state.metadataTemplates.some(t => t.id === savedActiveTemplateId)
+    ? savedActiveTemplateId
+    : (state.metadataTemplates[0]?.id || null);
+
   // Migrate the old single-folder format (a lone handle under the
   // 'dirHandle' key) into the recent-folders list the first time this runs.
   if (!Array.isArray(await kvGet('recentFolders'))) {
@@ -1071,6 +1675,8 @@ async function init() {
   await renderRecentFoldersSelect();
 
   renderRosterSelects();
+  renderTemplateSelects();
+  renderApplyTemplateButtonState();
   render();
 }
 

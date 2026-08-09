@@ -111,6 +111,14 @@
         <div id="extra-name-buttons" class="chip-row"></div>
       </div>
 
+      <div class="template-section">
+        <div class="roster-header">
+          <p class="panel-label">Metadata Templates</p>
+          <button id="btn-manage-templates" class="link-btn">Manage</button>
+        </div>
+        <button id="btn-apply-template" class="btn-apply-template">Apply Template…</button>
+      </div>
+
       <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords…</button>
     </div>
   </div>
@@ -160,6 +168,96 @@
     <ul id="roster-list" class="roster-list"></ul>
     <div class="modal-actions">
       <button id="btn-roster-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Metadata Templates management modal -->
+<div id="template-modal" class="modal-overlay hidden">
+  <div class="modal template-modal">
+    <h2>Manage Metadata Templates</h2>
+
+    <div class="roster-switcher">
+      <select id="template-select-modal" class="roster-select"></select>
+      <button id="btn-template-new" class="link-btn">+ New</button>
+      <button id="btn-template-rename" class="link-btn">Rename</button>
+      <button id="btn-template-duplicate" class="link-btn">Duplicate</button>
+      <button id="btn-template-delete" class="link-btn link-btn-danger">Delete</button>
+    </div>
+    <div class="roster-io">
+      <button id="btn-template-export" class="link-btn">Export template…</button>
+      <button id="btn-template-import" class="link-btn">Import template…</button>
+      <input id="template-import-file" type="file" accept="application/json,.json" class="hidden">
+      <span id="template-io-status" class="csv-import-status"></span>
+    </div>
+    <div id="template-name-edit-section" class="roster-name-edit-section hidden">
+      <input id="template-name-edit-input" type="text" placeholder="Template name">
+      <button id="btn-template-name-edit-save" class="btn btn-primary">Save</button>
+      <button id="btn-template-name-edit-cancel" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <div class="template-editor-body">
+      <div class="template-editor-fields">
+        <p class="panel-label">Click a variable to insert it into the focused field</p>
+        <div id="template-vars-row" class="chip-row template-vars-row"></div>
+        <div id="template-fields"></div>
+      </div>
+      <div class="template-editor-side">
+        <div id="template-custom-vars-section" class="template-custom-vars-section hidden">
+          <p class="panel-label">Custom variables used</p>
+          <div id="template-custom-vars"></div>
+        </div>
+        <div class="template-preview-section">
+          <p class="panel-label">Preview (sample data)</p>
+          <div id="template-preview" class="template-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="btn-template-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Apply-Template fill-in form -->
+<div id="template-apply-modal" class="modal-overlay hidden">
+  <div class="modal template-apply-modal">
+    <h2>Apply Template</h2>
+    <div class="template-apply-row">
+      <label for="template-apply-select">Template</label>
+      <select id="template-apply-select" class="roster-select"></select>
+    </div>
+    <div class="template-apply-row">
+      <label for="template-apply-date">Event date</label>
+      <input id="template-apply-date" type="date">
+    </div>
+    <div class="template-apply-row">
+      <label for="template-apply-photographer">Photographer name</label>
+      <input id="template-apply-photographer" type="text">
+    </div>
+    <div class="template-apply-row">
+      <label for="template-apply-org">Organisation name</label>
+      <input id="template-apply-org" type="text">
+    </div>
+    <div id="template-apply-custom-vars-section" class="hidden">
+      <p class="panel-label">Custom variables</p>
+      <div id="template-apply-custom-vars"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="btn-template-apply-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="btn-template-apply-confirm" class="btn btn-primary">Apply to All Photos…</button>
+    </div>
+  </div>
+</div>
+
+<!-- Apply-Template progress modal -->
+<div id="apply-template-modal" class="modal-overlay hidden">
+  <div class="modal clear-all-modal">
+    <h2>Applying Template…</h2>
+    <p id="apply-template-progress-text" class="progress-text">Starting…</p>
+    <div class="progress-track">
+      <div id="apply-template-progress-fill" class="progress-fill"></div>
     </div>
   </div>
 </div>
