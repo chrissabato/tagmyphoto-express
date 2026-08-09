@@ -370,7 +370,12 @@ const state = {
   activeTemplateId: null,
   renameTemplates: [],    // { id, name, pattern: string }
   activeRenameTemplateId: null,
+  settings: { photographer: '', orgName: '' },
 };
+
+function persistSettings() {
+  return kvSet('settings', state.settings);
+}
 
 function suggestedNames() {
   const names = new Set();
@@ -420,6 +425,11 @@ const el = {
   taggedCount: $('#tagged-count'),
   btnPickFolder: $('#btn-pick-folder'),
   recentFoldersSelect: $('#recent-folders-select'),
+  btnOpenSettings: $('#btn-open-settings'),
+  settingsModal: $('#settings-modal'),
+  settingsPhotographer: $('#settings-photographer'),
+  settingsOrg: $('#settings-org'),
+  btnSettingsClose: $('#btn-settings-close'),
   btnFilterUntagged: $('#btn-filter-untagged'),
   checkedBar: $('#checked-bar'),
   checkedCount: $('#checked-count'),
@@ -974,6 +984,29 @@ function persistRosters() {
   ]);
 }
 
+// Click-outside-to-close: every field in these modals autosaves as you go
+// (see persist* calls throughout), so there's nothing to lose by dismissing
+// on an outside click. Progress modals (marked modal-no-dismiss) represent
+// an in-flight file write with no cancel affordance, so they're excluded —
+// they close themselves when the operation finishes.
+for (const overlay of document.querySelectorAll('.modal-overlay:not(.modal-no-dismiss)')) {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.add('hidden');
+  });
+}
+
+// --- Settings ---
+el.btnOpenSettings.addEventListener('click', () => {
+  el.settingsPhotographer.value = state.settings.photographer;
+  el.settingsOrg.value = state.settings.orgName;
+  el.settingsModal.classList.remove('hidden');
+});
+el.btnSettingsClose.addEventListener('click', () => el.settingsModal.classList.add('hidden'));
+el.settingsPhotographer.addEventListener('input', () => { state.settings.photographer = el.settingsPhotographer.value; });
+el.settingsOrg.addEventListener('input', () => { state.settings.orgName = el.settingsOrg.value; });
+el.settingsPhotographer.addEventListener('change', persistSettings);
+el.settingsOrg.addEventListener('change', persistSettings);
+
 el.btnManageRoster.addEventListener('click', () => {
   renderRosterSelects();
   renderRosterModalList();
@@ -1238,10 +1271,11 @@ function persistTemplates() {
 }
 
 // Populated when the Apply-Template form opens; discarded when it closes.
-// Deliberately never touches IndexedDB — fill-in values (photographer name,
-// custom vars) are per-session only, per the user's decision that these
-// shouldn't persist across sessions. Date vars come from each photo's own
-// EXIF capture date instead (see computeDateVarsFromExif), not from here.
+// photographer/orgName default from the persisted Settings (state.settings)
+// but only live here while editing — a per-apply override doesn't write
+// back to Settings. Custom vars are always per-session only. Date vars come
+// from each photo's own EXIF capture date instead (see
+// computeDateVarsFromExif), not from here.
 let templateApplyDraft = null; // { templateId, photographer, orgName, customVars: {} }
 
 // Interpolates one template's fields against the given fill-ins (plus
@@ -1627,8 +1661,8 @@ el.btnApplyTemplate.addEventListener('click', () => {
   if (!templateApplyDraft) {
     templateApplyDraft = {
       templateId: (activeTemplate() || state.metadataTemplates[0]).id,
-      photographer: '',
-      orgName: '',
+      photographer: state.settings.photographer,
+      orgName: state.settings.orgName,
       customVars: {},
     };
   }
@@ -2193,6 +2227,11 @@ async function init() {
     return;
   }
   el.app.classList.remove('hidden');
+
+  const savedSettings = await kvGet('settings');
+  if (savedSettings && typeof savedSettings === 'object') {
+    state.settings = { photographer: savedSettings.photographer || '', orgName: savedSettings.orgName || '' };
+  }
 
   const savedRosters = await kvGet('rosters');
   if (Array.isArray(savedRosters) && savedRosters.length > 0) {

@@ -46,12 +46,15 @@
   <header class="topbar">
     <img src="logo.svg" alt="" class="brand-logo">
     <h1 class="title">TagMyPhoto <span class="title-accent">Express</span></h1>
-    <button id="btn-pick-folder" class="btn btn-secondary">Open Folder…</button>
+    <button id="btn-pick-folder" class="btn btn-secondary">Open Folder</button>
     <select id="recent-folders-select" class="recent-folders-select hidden">
       <option value="">Reopen recent…</option>
     </select>
     <span id="tagged-count" class="tagged-count"></span>
     <div class="spacer"></div>
+    <button id="btn-open-settings" class="btn-manage topbar-settings-btn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
   </header>
 
   <div id="empty-state" class="empty-state">
@@ -116,7 +119,7 @@
       <div class="template-section">
         <p class="panel-label">Metadata Templates</p>
         <div class="control-group">
-          <button id="btn-apply-template" class="btn-apply-template">Apply Template…</button>
+          <button id="btn-apply-template" class="btn-apply-template">Apply Template</button>
           <button id="btn-manage-templates" class="btn-manage" title="Manage" aria-label="Manage">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </button>
@@ -126,14 +129,33 @@
       <div class="template-section">
         <p class="panel-label">File Renaming</p>
         <div class="control-group">
-          <button id="btn-apply-rename" class="btn-apply-template">Rename Files…</button>
+          <button id="btn-apply-rename" class="btn-apply-template">Rename Files</button>
           <button id="btn-manage-rename" class="btn-manage" title="Manage" aria-label="Manage">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </button>
         </div>
       </div>
 
-      <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords…</button>
+      <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Settings</h2>
+    <div class="template-apply-row">
+      <label for="settings-photographer">Photographer name</label>
+      <input id="settings-photographer" type="text">
+    </div>
+    <div class="template-apply-row">
+      <label for="settings-org">Organization name</label>
+      <input id="settings-org" type="text">
+    </div>
+    <p class="rename-hint">Used to auto-fill the Photographer/Organization fields when applying a metadata template. Saved on this device.</p>
+    <div class="modal-actions">
+      <button id="btn-settings-close" class="btn btn-secondary">Close</button>
     </div>
   </div>
 </div>
@@ -151,8 +173,8 @@
       <button id="btn-roster-clear" class="link-btn link-btn-danger">Clear</button>
     </div>
     <div class="roster-io">
-      <button id="btn-roster-export" class="link-btn">Export all rosters…</button>
-      <button id="btn-roster-import" class="link-btn">Import rosters…</button>
+      <button id="btn-roster-export" class="link-btn">Export all rosters</button>
+      <button id="btn-roster-import" class="link-btn">Import rosters</button>
       <input id="roster-import-file" type="file" accept="application/json,.json" class="hidden">
       <span id="roster-io-status" class="csv-import-status"></span>
     </div>
@@ -169,7 +191,7 @@
     </div>
 
     <div class="roster-import">
-      <button id="btn-toggle-csv-import" class="link-btn">Import from CSV…</button>
+      <button id="btn-toggle-csv-import" class="link-btn">Import from CSV</button>
       <div id="csv-import-section" class="csv-import-section hidden">
         <textarea id="csv-import-text" class="csv-import-textarea" rows="5" placeholder="Paste CSV here, one person per line:&#10;12,Jane Smith&#10;John Doe"></textarea>
         <div class="csv-import-actions">
@@ -199,8 +221,8 @@
       <button id="btn-template-delete" class="link-btn link-btn-danger">Delete</button>
     </div>
     <div class="roster-io">
-      <button id="btn-template-export" class="link-btn">Export template…</button>
-      <button id="btn-template-import" class="link-btn">Import template…</button>
+      <button id="btn-template-export" class="link-btn">Export template</button>
+      <button id="btn-template-import" class="link-btn">Import template</button>
       <input id="template-import-file" type="file" accept="application/json,.json" class="hidden">
       <span id="template-io-status" class="csv-import-status"></span>
     </div>
@@ -256,13 +278,13 @@
     </div>
     <div class="modal-actions">
       <button id="btn-template-apply-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="btn-template-apply-confirm" class="btn btn-primary">Apply to All Photos…</button>
+      <button id="btn-template-apply-confirm" class="btn btn-primary">Apply to All Photos</button>
     </div>
   </div>
 </div>
 
 <!-- Apply-Template progress modal -->
-<div id="apply-template-modal" class="modal-overlay hidden">
+<div id="apply-template-modal" class="modal-overlay modal-no-dismiss hidden">
   <div class="modal clear-all-modal">
     <h2>Applying Template…</h2>
     <p id="apply-template-progress-text" class="progress-text">Starting…</p>
@@ -335,13 +357,13 @@
     <p id="rename-apply-scope" class="rename-hint"></p>
     <div class="modal-actions">
       <button id="btn-rename-apply-cancel" class="btn btn-secondary">Cancel</button>
-      <button id="btn-rename-apply-confirm" class="btn btn-primary">Rename…</button>
+      <button id="btn-rename-apply-confirm" class="btn btn-primary">Rename</button>
     </div>
   </div>
 </div>
 
 <!-- Rename progress modal -->
-<div id="rename-progress-modal" class="modal-overlay hidden">
+<div id="rename-progress-modal" class="modal-overlay modal-no-dismiss hidden">
   <div class="modal clear-all-modal">
     <h2>Renaming Files…</h2>
     <p id="rename-progress-text" class="progress-text">Starting…</p>
@@ -352,7 +374,7 @@
 </div>
 
 <!-- Remove-all-keywords progress modal -->
-<div id="clear-all-modal" class="modal-overlay hidden">
+<div id="clear-all-modal" class="modal-overlay modal-no-dismiss hidden">
   <div class="modal clear-all-modal">
     <h2>Removing All Keywords…</h2>
     <p id="clear-all-progress-text" class="progress-text">Starting…</p>

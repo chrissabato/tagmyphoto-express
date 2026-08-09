@@ -41,12 +41,12 @@ body {
   justify-content: center;
   padding: 0 10px;
   border-radius: 5px;
-  border: 1px solid #4a5568;
-  background: #4a5568;
+  border: 1px solid #2d3748;
+  background: #2d3748;
   color: #fff;
   cursor: pointer;
 }
-.btn-manage:hover { background: #2d3748; border-color: #2d3748; }
+.btn-manage:hover { background: #1a202c; border-color: #1a202c; }
 
 /* Top bar */
 .topbar {
@@ -72,6 +72,14 @@ body {
 .title-accent { color: #d0b17b; font-weight: 400; font-style: italic; }
 .spacer { flex: 1; }
 .tagged-count { color: #d0b17b; font-size: 14px; }
+.topbar-settings-btn {
+  height: 34px;
+  width: 34px;
+  flex-shrink: 0;
+  background: #071726;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.topbar-settings-btn:hover { background: #000; border-color: rgba(255, 255, 255, 0.3); }
 
 .empty-state {
   padding: 60px 24px;
