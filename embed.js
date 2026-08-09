@@ -127,7 +127,7 @@
     // where to put the dark-mode attribute, instead of the real document.
     window.__TMPX_ROOT__ = shadow;
     window.__TMPX_THEME_ROOT__ = wrapper;
-    if (localStorage.getItem('darkMode') === '1') wrapper.setAttribute('data-theme', 'dark');
+    if (localStorage.getItem('darkMode') !== '0') wrapper.setAttribute('data-theme', 'dark');
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '\u2715';

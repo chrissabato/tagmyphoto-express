@@ -378,7 +378,7 @@ const state = {
   activeTemplateId: null,
   renameTemplates: [],    // { id, name, pattern: string }
   activeRenameTemplateId: null,
-  settings: { photographer: '', orgName: '', darkMode: false },
+  settings: { photographer: '', orgName: '', darkMode: true },
 };
 
 function persistSettings() {
@@ -2411,7 +2411,7 @@ async function init() {
     state.settings = {
       photographer: savedSettings.photographer || '',
       orgName: savedSettings.orgName || '',
-      darkMode: !!savedSettings.darkMode,
+      darkMode: savedSettings.darkMode === undefined ? true : !!savedSettings.darkMode,
     };
   }
   applyTheme();

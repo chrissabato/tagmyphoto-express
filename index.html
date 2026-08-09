@@ -12,7 +12,7 @@
 </script>
 <script>
   try {
-    if (localStorage.getItem('darkMode') === '1') document.documentElement.setAttribute('data-theme', 'dark');
+    if (localStorage.getItem('darkMode') !== '0') document.documentElement.setAttribute('data-theme', 'dark');
   } catch (e) {}
 </script>
 <meta charset="UTF-8">
