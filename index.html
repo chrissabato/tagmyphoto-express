@@ -10,6 +10,11 @@
 
   gtag('config', 'G-EYBFB9PD47');
 </script>
+<script>
+  try {
+    if (localStorage.getItem('darkMode') === '1') document.documentElement.setAttribute('data-theme', 'dark');
+  } catch (e) {}
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TagMyPhoto Express</title>
@@ -209,6 +214,10 @@
       <input id="settings-org" type="text">
     </div>
     <p class="rename-hint">Used to auto-fill the Photographer/Organization fields when applying a metadata template. Saved on this device.</p>
+    <div class="settings-toggle-row">
+      <label for="settings-dark-mode">Dark mode</label>
+      <input id="settings-dark-mode" type="checkbox">
+    </div>
     <div class="modal-actions">
       <button id="btn-settings-close" class="btn btn-secondary">Close</button>
     </div>

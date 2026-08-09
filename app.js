@@ -378,11 +378,21 @@ const state = {
   activeTemplateId: null,
   renameTemplates: [],    // { id, name, pattern: string }
   activeRenameTemplateId: null,
-  settings: { photographer: '', orgName: '' },
+  settings: { photographer: '', orgName: '', darkMode: false },
 };
 
 function persistSettings() {
   return kvSet('settings', state.settings);
+}
+
+// Mirrors darkMode to localStorage (synchronous) alongside the IndexedDB
+// settings record (async) — a tiny inline script in index.html reads this
+// before first paint so the page doesn't flash light before switching to
+// the user's saved theme.
+function applyTheme() {
+  if (state.settings.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('darkMode', state.settings.darkMode ? '1' : '0'); } catch (e) {}
 }
 
 function suggestedNames() {
@@ -440,6 +450,7 @@ const el = {
   settingsModal: $('#settings-modal'),
   settingsPhotographer: $('#settings-photographer'),
   settingsOrg: $('#settings-org'),
+  settingsDarkMode: $('#settings-dark-mode'),
   btnSettingsClose: $('#btn-settings-close'),
   btnFilterUntagged: $('#btn-filter-untagged'),
   checkedBar: $('#checked-bar'),
@@ -1015,6 +1026,7 @@ el.btnHelpClose.addEventListener('click', () => el.helpModal.classList.add('hidd
 el.btnOpenSettings.addEventListener('click', () => {
   el.settingsPhotographer.value = state.settings.photographer;
   el.settingsOrg.value = state.settings.orgName;
+  el.settingsDarkMode.checked = state.settings.darkMode;
   el.settingsModal.classList.remove('hidden');
 });
 el.btnSettingsClose.addEventListener('click', () => el.settingsModal.classList.add('hidden'));
@@ -1022,6 +1034,11 @@ el.settingsPhotographer.addEventListener('input', () => { state.settings.photogr
 el.settingsOrg.addEventListener('input', () => { state.settings.orgName = el.settingsOrg.value; });
 el.settingsPhotographer.addEventListener('change', persistSettings);
 el.settingsOrg.addEventListener('change', persistSettings);
+el.settingsDarkMode.addEventListener('change', () => {
+  state.settings.darkMode = el.settingsDarkMode.checked;
+  applyTheme();
+  persistSettings();
+});
 
 el.btnManageRoster.addEventListener('click', () => {
   renderRosterSelects();
@@ -2251,8 +2268,13 @@ async function init() {
 
   const savedSettings = await kvGet('settings');
   if (savedSettings && typeof savedSettings === 'object') {
-    state.settings = { photographer: savedSettings.photographer || '', orgName: savedSettings.orgName || '' };
+    state.settings = {
+      photographer: savedSettings.photographer || '',
+      orgName: savedSettings.orgName || '',
+      darkMode: !!savedSettings.darkMode,
+    };
   }
+  applyTheme();
 
   const savedRosters = await kvGet('rosters');
   if (Array.isArray(savedRosters) && savedRosters.length > 0) {
