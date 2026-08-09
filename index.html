@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TagMyPhoto Express</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="unsupported" class="unsupported hidden">
+  <div class="unsupported-box">
+    <h2>Browser not supported</h2>
+    <p>TagMyPhoto Express needs the File System Access API to read and save photos on
+       your device. Please open this page in <strong>Chrome</strong> or
+       <strong>Edge</strong> on desktop.</p>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <img src="logo.svg" alt="" class="brand-logo">
+    <h1 class="title">TagMyPhoto Express</h1>
+    <button id="btn-pick-folder" class="btn btn-secondary">Open Folder…</button>
+    <select id="recent-folders-select" class="recent-folders-select hidden">
+      <option value="">Reopen recent…</option>
+    </select>
+    <span id="tagged-count" class="tagged-count"></span>
+    <div class="spacer"></div>
+  </header>
+
+  <div id="empty-state" class="empty-state">
+    <p>Open a folder of photos to get started. Tags are saved directly into each
+       JPEG's IPTC keywords — nothing leaves your browser.</p>
+  </div>
+
+  <div id="workspace" class="workspace hidden">
+    <!-- Thumbnail strip -->
+    <div class="thumb-strip">
+      <button id="btn-filter-untagged" class="btn btn-filter">Show untagged</button>
+      <div id="checked-bar" class="checked-bar hidden">
+        <span id="checked-count"></span>
+        <button id="btn-clear-checked" class="link-btn">Clear</button>
+      </div>
+      <div id="thumb-list" class="thumb-list"></div>
+    </div>
+
+    <!-- Main photo + tag input -->
+    <div class="main-panel">
+      <div class="nav-row">
+        <button id="btn-prev" class="btn btn-nav">&larr; Prev</button>
+        <div class="tag-input-wrap">
+          <div class="tag-input-row">
+            <input id="tag-input" type="text" placeholder="Add a name or number…" autocomplete="off">
+            <button id="btn-add-tag" class="btn btn-primary">Add</button>
+          </div>
+          <ul id="tag-suggestions" class="tag-suggestions hidden"></ul>
+        </div>
+        <button id="btn-next" class="btn btn-nav">Next &rarr;</button>
+      </div>
+
+      <div id="format-notice" class="format-notice hidden">
+        Tags shown here won't be saved to the file — JPEG only for now.
+      </div>
+
+      <div id="tag-badges" class="tag-badges"></div>
+
+      <div class="photo-frame-wrap">
+        <div class="photo-frame">
+          <img id="main-photo" class="main-photo" alt="">
+        </div>
+      </div>
+    </div>
+
+    <!-- Roster / quick add -->
+    <div class="roster-panel">
+      <div class="roster-header">
+        <p class="panel-label">Roster</p>
+        <button id="btn-manage-roster" class="link-btn">Manage</button>
+      </div>
+      <select id="roster-select" class="roster-select"></select>
+      <div id="roster-buttons" class="chip-row"></div>
+
+      <div id="extra-names-section" class="hidden">
+        <p class="panel-label extra-label">Also tagged</p>
+        <div id="extra-name-buttons" class="chip-row"></div>
+      </div>
+
+      <button id="btn-clear-all-keywords" class="btn-clear-all">Remove All Keywords…</button>
+    </div>
+  </div>
+</div>
+
+<!-- Roster management modal -->
+<div id="roster-modal" class="modal-overlay hidden">
+  <div class="modal roster-modal">
+    <h2>Manage Roster</h2>
+
+    <div class="roster-switcher">
+      <select id="roster-select-modal" class="roster-select"></select>
+      <button id="btn-roster-new" class="link-btn">+ New</button>
+      <button id="btn-roster-rename" class="link-btn">Rename</button>
+      <button id="btn-roster-delete" class="link-btn">Delete</button>
+      <button id="btn-roster-clear" class="link-btn link-btn-danger">Clear</button>
+    </div>
+    <div id="roster-name-edit-section" class="roster-name-edit-section hidden">
+      <input id="roster-name-edit-input" type="text" placeholder="Roster name">
+      <button id="btn-roster-name-edit-save" class="btn btn-primary">Save</button>
+      <button id="btn-roster-name-edit-cancel" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <div class="roster-form">
+      <input id="roster-name-input" type="text" placeholder="Name">
+      <input id="roster-number-input" type="text" placeholder="# (optional)" class="roster-number-input">
+      <button id="btn-roster-add" class="btn btn-primary">Add</button>
+    </div>
+
+    <div class="roster-import">
+      <button id="btn-toggle-csv-import" class="link-btn">Import from CSV…</button>
+      <div id="csv-import-section" class="csv-import-section hidden">
+        <textarea id="csv-import-text" class="csv-import-textarea" rows="5" placeholder="Paste CSV here, one person per line:&#10;12,Jane Smith&#10;John Doe"></textarea>
+        <div class="csv-import-actions">
+          <button id="btn-csv-import" class="btn btn-primary">Import</button>
+          <span id="csv-import-status" class="csv-import-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <ul id="roster-list" class="roster-list"></ul>
+    <div class="modal-actions">
+      <button id="btn-roster-close" class="btn btn-secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Remove-all-keywords progress modal -->
+<div id="clear-all-modal" class="modal-overlay hidden">
+  <div class="modal clear-all-modal">
+    <h2>Removing All Keywords…</h2>
+    <p id="clear-all-progress-text" class="progress-text">Starting…</p>
+    <div class="progress-track">
+      <div id="clear-all-progress-fill" class="progress-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox hidden">
+  <img id="lightbox-img" alt="">
+  <button id="btn-lightbox-close" class="lightbox-close">&times;</button>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
