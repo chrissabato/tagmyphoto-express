@@ -471,6 +471,10 @@ function renameTargets() {
 // to the normal document.
 const ROOT = window.__TMPX_ROOT__ || document;
 const THEME_ROOT = window.__TMPX_THEME_ROOT__ || document.documentElement;
+// The Presto roster importer only works same-origin with the team's roster
+// page (see parsePrestoRosterHtml below), which is only true when embed.js
+// mounted this app on that page — set only in that case.
+const IS_EMBEDDED = !!window.__TMPX_ROOT__;
 const $ = sel => ROOT.querySelector(sel);
 const el = {
   app: $('#app'),
@@ -1439,6 +1443,11 @@ const ROSTER_TABS = [
   { tab: el.btnToggleWebsiteImport, panel: el.websiteImportSection, focus: el.websiteImportUrl },
   { tab: el.btnToggleJsonImport, panel: el.jsonImportSection, focus: null },
 ];
+
+// The Presto tab only works when embedded (see IS_EMBEDDED above) — hidden
+// rather than removed so activateRosterTab's loop over ROSTER_TABS doesn't
+// need a separate code path for it.
+if (!IS_EMBEDDED) el.btnToggleWebsiteImport.classList.add('hidden');
 
 function activateRosterTab(panel) {
   for (const entry of ROSTER_TABS) {
