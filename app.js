@@ -408,7 +408,7 @@ const state = {
   activeTemplateId: null,
   renameTemplates: [],    // { id, name, pattern: string }
   activeRenameTemplateId: null,
-  settings: { photographer: '', orgName: '', darkMode: true },
+  settings: { photographer: '', orgName: '', darkMode: true, presetKeywords: [] },
 };
 
 function persistSettings() {
@@ -488,6 +488,9 @@ const el = {
   settingsPhotographer: $('#settings-photographer'),
   settingsOrg: $('#settings-org'),
   settingsDarkMode: $('#settings-dark-mode'),
+  settingsPresetKeywordInput: $('#settings-preset-keyword-input'),
+  btnSettingsPresetKeywordAdd: $('#btn-settings-preset-keyword-add'),
+  settingsPresetKeywordsList: $('#settings-preset-keywords-list'),
   btnSettingsClose: $('#btn-settings-close'),
   btnFilterUntagged: $('#btn-filter-untagged'),
   checkedBar: $('#checked-bar'),
@@ -856,7 +859,19 @@ function renderRosterPanel() {
   }
 
   const rNames = rosterNameSet();
-  const extra = suggestedNames().filter(n => !rNames.has(n.toLowerCase()));
+  // Preset keywords (from Settings) always show here, even before they've
+  // been used on any photo — merged ahead of already-used tags so a preset
+  // keyword's configured casing wins over whatever casing a photo's tag
+  // happens to use.
+  const seen = new Set();
+  const extra = [];
+  for (const name of [...state.settings.presetKeywords, ...suggestedNames()]) {
+    const key = name.toLowerCase();
+    if (rNames.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    extra.push(name);
+  }
+  extra.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   el.extraNamesSection.classList.toggle('hidden', extra.length === 0);
   el.extraNameButtons.innerHTML = '';
   for (const name of extra) {
@@ -1194,10 +1209,39 @@ el.btnOpenHelp.addEventListener('click', () => el.helpModal.classList.remove('hi
 el.btnHelpClose.addEventListener('click', () => el.helpModal.classList.add('hidden'));
 
 // --- Settings ---
+function renderSettingsPresetKeywords() {
+  el.settingsPresetKeywordsList.innerHTML = '';
+  for (const keyword of state.settings.presetKeywords) {
+    const btn = document.createElement('button');
+    btn.className = 'chip extra';
+    btn.textContent = keyword;
+    btn.title = 'Click to remove';
+    btn.addEventListener('click', () => {
+      state.settings.presetKeywords = state.settings.presetKeywords.filter(k => k !== keyword);
+      persistSettings();
+      renderSettingsPresetKeywords();
+      renderRosterPanel();
+    });
+    el.settingsPresetKeywordsList.appendChild(btn);
+  }
+}
+
+function addPresetKeyword() {
+  const value = el.settingsPresetKeywordInput.value.trim();
+  el.settingsPresetKeywordInput.value = '';
+  if (!value) return;
+  if (state.settings.presetKeywords.some(k => k.toLowerCase() === value.toLowerCase())) return;
+  state.settings.presetKeywords.push(value);
+  persistSettings();
+  renderSettingsPresetKeywords();
+  renderRosterPanel();
+}
+
 el.btnOpenSettings.addEventListener('click', () => {
   el.settingsPhotographer.value = state.settings.photographer;
   el.settingsOrg.value = state.settings.orgName;
   el.settingsDarkMode.checked = state.settings.darkMode;
+  renderSettingsPresetKeywords();
   el.settingsModal.classList.remove('hidden');
 });
 el.btnSettingsClose.addEventListener('click', () => el.settingsModal.classList.add('hidden'));
@@ -1209,6 +1253,10 @@ el.settingsDarkMode.addEventListener('change', () => {
   state.settings.darkMode = el.settingsDarkMode.checked;
   applyTheme();
   persistSettings();
+});
+el.btnSettingsPresetKeywordAdd.addEventListener('click', addPresetKeyword);
+el.settingsPresetKeywordInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addPresetKeyword(); }
 });
 
 el.btnManageRoster.addEventListener('click', () => {
@@ -2637,6 +2685,7 @@ async function init() {
       photographer: savedSettings.photographer || '',
       orgName: savedSettings.orgName || '',
       darkMode: savedSettings.darkMode === undefined ? true : !!savedSettings.darkMode,
+      presetKeywords: Array.isArray(savedSettings.presetKeywords) ? savedSettings.presetKeywords : [],
     };
   }
   applyTheme();

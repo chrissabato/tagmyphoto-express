@@ -395,6 +395,7 @@ body {
 .btn-manage-danger { color: #feb2b2; }
 .btn-manage-danger:hover { background: #742a2a; border-color: #742a2a; color: #fff; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.settings-preset-keywords-list { margin-bottom: 8px; }
 .chip {
   padding: 5px 10px;
   border-radius: 20px;
@@ -482,7 +483,7 @@ body {
   background: var(--bg-input);
   color: var(--text-primary);
 }
-#roster-name-input { flex: 1; }
+#roster-name-input, #settings-preset-keyword-input { flex: 1; }
 .roster-number-input { width: 70px; }
 
 .roster-import { margin-bottom: 16px; }
